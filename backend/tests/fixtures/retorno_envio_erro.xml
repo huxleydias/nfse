@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RetornoEnvioRPS xmlns="http://www.prefeitura.sp.gov.br/nfe">
+  <Cabecalho Versao="2" xmlns="">
+    <Sucesso>false</Sucesso>
+  </Cabecalho>
+  <Erro xmlns="">
+    <Codigo>1002</Codigo>
+    <Descricao>Versao do Schema XML Incorreto.</Descricao>
+  </Erro>
+  <Erro xmlns="">
+    <Codigo>215</Codigo>
+    <Descricao>Assinatura do RPS invalida.</Descricao>
+  </Erro>
+</RetornoEnvioRPS>

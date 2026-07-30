@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RetornoCancelamentoNFe xmlns="http://www.prefeitura.sp.gov.br/nfe">
+  <Cabecalho Versao="2" xmlns="">
+    <Sucesso>true</Sucesso>
+  </Cabecalho>
+</RetornoCancelamentoNFe>

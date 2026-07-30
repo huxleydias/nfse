@@ -1,6 +1,11 @@
 from datetime import date
 
-from app.nfse.xml_builder import build_pedido_envio_rps, _dec, _aliquota
+from app.nfse.xml_builder import (
+    build_pedido_envio_lote_rps,
+    build_pedido_envio_rps,
+    _dec,
+    _aliquota,
+)
 
 
 PRESTADOR = {"cnpj": "37.624.983/0001-47", "inscricao_municipal": "66467799"}
@@ -107,6 +112,21 @@ class TestBuildPedido:
         assert tags.index("Discriminacao") < tags.index("ValorFinalCobrado")
         assert tags.index("NBS") < tags.index("IBSCBS")
         assert tags[-1] == "IBSCBS"
+
+
+class TestBuildLote:
+    def test_cabecalho_lote(self):
+        root = build_pedido_envio_lote_rps(PRESTADOR, rps_base(), "QUJD")
+        cab = root.find("Cabecalho")
+        assert cab.get("Versao") == "2"
+        assert texto(root, "Cabecalho/dtInicio") == "2026-07-30"
+        assert texto(root, "Cabecalho/dtFim") == "2026-07-30"
+        assert texto(root, "Cabecalho/QtdRPS") == "1"
+
+    def test_rps_igual_ao_pedido_individual(self):
+        lote = build_pedido_envio_lote_rps(PRESTADOR, rps_base(), "QUJD")
+        assert texto(lote, "RPS/ValorFinalCobrado") == "599.00"
+        assert lote.find(".//IBSCBS") is not None
 
 
 class TestFormatos:

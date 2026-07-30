@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RetornoConsulta xmlns="http://www.prefeitura.sp.gov.br/nfe">
+  <Cabecalho Versao="2" xmlns="">
+    <Sucesso>true</Sucesso>
+  </Cabecalho>
+  <NFe xmlns="">
+    <ChaveNFe>
+      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <NumeroNFe>1234</NumeroNFe>
+      <CodigoVerificacao>ABCD1234</CodigoVerificacao>
+    </ChaveNFe>
+    <DataEmissaoNFe>2026-07-30T10:00:00</DataEmissaoNFe>
+    <ChaveRPS>
+      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <SerieRPS>PM</SerieRPS>
+      <NumeroRPS>8</NumeroRPS>
+    </ChaveRPS>
+    <StatusNFe>N</StatusNFe>
+    <ValorFinalCobrado>599.00</ValorFinalCobrado>
+    <CodigoServico>05762</CodigoServico>
+    <CPFCNPJTomador>
+      <CPF>11144477735</CPF>
+    </CPFCNPJTomador>
+    <RazaoSocialTomador>Fulano de Tal</RazaoSocialTomador>
+    <Discriminacao>Curso IA para Designers</Discriminacao>
+  </NFe>
+  <NFe xmlns="">
+    <ChaveNFe>
+      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <NumeroNFe>1235</NumeroNFe>
+      <CodigoVerificacao>EFGH5678</CodigoVerificacao>
+    </ChaveNFe>
+    <DataEmissaoNFe>2026-07-30T11:00:00</DataEmissaoNFe>
+    <StatusNFe>C</StatusNFe>
+    <ValorServicos>10000.00</ValorServicos>
+    <CodigoServico>05762</CodigoServico>
+    <CPFCNPJTomador>
+      <CNPJ>04891850000188</CNPJ>
+    </CPFCNPJTomador>
+    <RazaoSocialTomador>Empresa X LTDA</RazaoSocialTomador>
+    <Discriminacao>Mentoria de Product Analytics</Discriminacao>
+  </NFe>
+</RetornoConsulta>

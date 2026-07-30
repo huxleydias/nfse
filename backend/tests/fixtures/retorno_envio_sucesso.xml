@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RetornoEnvioRPS xmlns="http://www.prefeitura.sp.gov.br/nfe" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Cabecalho Versao="2" xmlns="">
+    <Sucesso>true</Sucesso>
+  </Cabecalho>
+  <ChaveNFeRPS xmlns="">
+    <ChaveNFe>
+      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <NumeroNFe>1234</NumeroNFe>
+      <CodigoVerificacao>ABCD1234</CodigoVerificacao>
+    </ChaveNFe>
+    <ChaveRPS>
+      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <SerieRPS>PM</SerieRPS>
+      <NumeroRPS>8</NumeroRPS>
+    </ChaveRPS>
+  </ChaveNFeRPS>
+</RetornoEnvioRPS>

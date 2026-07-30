@@ -46,6 +46,29 @@ def build_pedido_envio_rps(prestador: dict, rps: dict, assinatura_b64: str) -> e
     remetente = _el(cab, "CPFCNPJRemetente")
     _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
 
+    _build_rps(root, prestador, rps, assinatura_b64)
+    return root
+
+
+def build_pedido_envio_lote_rps(prestador: dict, rps: dict, assinatura_b64: str) -> etree._Element:
+    """Monta PedidoEnvioLoteRPS com 1 RPS. Usado pelo modo teste, ja que o
+    metodo de teste do webservice (TesteEnvioLoteRPS) recebe lote."""
+    root = etree.Element(f"{{{NFE_NS}}}PedidoEnvioLoteRPS", nsmap={"p1": NFE_NS})
+
+    cab = _el(root, "Cabecalho")
+    cab.set("Versao", "2")
+    remetente = _el(cab, "CPFCNPJRemetente")
+    _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
+    data: date = rps["data_emissao"]
+    _el(cab, "dtInicio", data.isoformat())
+    _el(cab, "dtFim", data.isoformat())
+    _el(cab, "QtdRPS", 1)
+
+    _build_rps(root, prestador, rps, assinatura_b64)
+    return root
+
+
+def _build_rps(root, prestador: dict, rps: dict, assinatura_b64: str):
     rps_el = _el(root, "RPS")
     _el(rps_el, "Assinatura", assinatura_b64)
 
@@ -129,7 +152,7 @@ def build_pedido_envio_rps(prestador: dict, rps: dict, assinatura_b64: str) -> e
     gibscbs = _el(trib, "gIBSCBS")
     _el(gibscbs, "cClassTrib", fiscal["c_class_trib"])
 
-    return root
+    return rps_el
 
 
 def xml_to_string(root: etree._Element) -> str:

@@ -61,6 +61,12 @@ class TestValidarPedidoEnvioRPS:
         with pytest.raises(XSDValidationError):
             validar(root, "PedidoEnvioRPS_v02.xsd")
 
+    def test_lote_valida_no_xsd_de_lote(self):
+        from app.nfse.xml_builder import build_pedido_envio_lote_rps
+        root = build_pedido_envio_lote_rps(PRESTADOR, rps_base(), "QUJD")
+        dummy_signature(root)
+        validar(root, "PedidoEnvioLoteRPS_v02.xsd")
+
     def test_cclasstrib_curto_falha(self):
         rps = rps_base(fiscal={**rps_base()["fiscal"], "c_class_trib": "01"})
         root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
