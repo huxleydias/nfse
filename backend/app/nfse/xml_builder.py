@@ -105,9 +105,10 @@ def build_pedido_envio_rps(prestador: dict, rps: dict, assinatura_b64: str) -> e
 
     _el(rps_el, "Discriminacao", rps["discriminacao"][:2000])
 
-    valor = rps["valor"]
-    _el(rps_el, "ValorInicialCobrado", _dec(valor))
-    _el(rps_el, "ValorFinalCobrado", _dec(valor))
+    # xs:choice no XSD: ValorInicialCobrado OU ValorFinalCobrado.
+    # Usamos ValorFinalCobrado: valor total da nota com tributos por dentro
+    # (calculo do fim para o inicio), que e como a PunkMetrics cobra.
+    _el(rps_el, "ValorFinalCobrado", _dec(rps["valor"]))
 
     fiscal = rps["fiscal"]
     _el(rps_el, "ValorIPI", _dec(fiscal.get("valor_ipi", 0.0)))

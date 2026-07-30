@@ -56,7 +56,8 @@ class TestBuildPedido:
 
     def test_campos_v2_presentes(self):
         root = build_pedido_envio_rps(PRESTADOR, rps_base(), "QUJD")
-        assert texto(root, "ValorInicialCobrado") == "599.00"
+        # xs:choice: apenas ValorFinalCobrado, nunca os dois
+        assert root.find(".//ValorInicialCobrado") is None
         assert texto(root, "ValorFinalCobrado") == "599.00"
         assert texto(root, "ValorIPI") == "0.00"
         assert texto(root, "ExigibilidadeSuspensa") == "0"
@@ -102,7 +103,7 @@ class TestBuildPedido:
         root = build_pedido_envio_rps(PRESTADOR, rps_base(), "QUJD")
         tags = [el.tag for el in root.find("RPS")]
         assert tags.index("Assinatura") < tags.index("ChaveRPS")
-        assert tags.index("Discriminacao") < tags.index("ValorInicialCobrado")
+        assert tags.index("Discriminacao") < tags.index("ValorFinalCobrado")
         assert tags.index("NBS") < tags.index("IBSCBS")
         assert tags[-1] == "IBSCBS"
 
