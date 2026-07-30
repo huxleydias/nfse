@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+
+[[deploy.volumes]]
+mountPath = "/data"
+name = "nfse-data"
