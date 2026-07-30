@@ -52,18 +52,55 @@ cd /Users/huxleydias/Sites/nfse-sp
 railway init --name nfse-sp
 ```
 
-**O que esse comando faz:** cria um projeto novo dentro do seu workspace no Railway (o "container" que vai agrupar o servico, as variaveis e o volume) e associa a pasta local a esse projeto (fica registrado em `.railway/`, que ja esta no `.gitignore`). Se ele perguntar qual workspace usar, escolha o seu (ex.: PUNKMETRICS).
+**O que esse comando faz:** cria um projeto novo dentro do seu workspace no Railway (o "container" que vai agrupar o servico, as variaveis e o volume) e **vincula a pasta local a esse projeto**. Se ele perguntar qual workspace usar, escolha o seu (ex.: PUNKMETRICS).
 
-> **Se aparecer "Deploys have been paused temporarily" ou "Limited Access":** isso NAO e erro no seu codigo nem na configuracao. E uma mensagem do proprio Railway avisando que deploys do seu plano (Hobby, o gratuito/de entrada) estao momentaneamente enfileirados, porque a plataforma prioriza contas Pro/Enterprise em horarios de pico ou durante instabilidades pontuais da infra deles. Nao exige nenhuma acao sua: os proximos comandos (`railway variables`, `railway volume add`, `railway up`) continuam funcionando normalmente, e o deploy em si roda assim que a fila liberar (geralmente minutos, raramente mais que isso). Se quiser evitar essa fila, upgrade pra plano Pro remove a espera. Pra confirmar que nao e uma instabilidade maior da plataforma, veja https://status.railway.com.
+### Como a CLI sabe de qual projeto voce esta falando
+
+Essa e a parte que confunde quem tem varios projetos no Railway: **nenhum dos comandos seguintes recebe o nome do projeto**. A CLI resolve isso por **vinculo de diretorio**.
+
+O `railway init` (ou `railway link`) grava a associacao `caminho absoluto da pasta -> projeto/ambiente/servico` no arquivo global `~/.railway/config.json`. A partir dai, qualquer comando rodado **de dentro daquela pasta** ja sabe o projeto. Nao e pelo nome da pasta nem por nada dentro do repositorio: e pelo caminho registrado nesse arquivo.
+
+Comandos uteis pra conferir e controlar isso:
 
 ```bash
-# Variaveis de ambiente: aqui entram os 3 segredos gerados na etapa 1
-railway variables --set "ADMIN_USER=huxley" \
-  --set "ADMIN_PASSWORD_HASH=<hash bcrypt gerado>" \
-  --set "API_TOKEN=<token gerado>" \
-  --set "SECRET_KEY=<chave gerada>" \
-  --set "DATA_DIR=/data"
+railway status   # mostra a qual projeto/ambiente/servico esta pasta esta vinculada
+railway list     # lista todos os seus projetos, agrupados por workspace
+railway link     # vincula esta pasta a um projeto JA existente (menu interativo)
+railway unlink   # desfaz o vinculo desta pasta
 ```
+
+Se `railway status` responder `No linked project found`, nenhum comando de projeto vai funcionar dessa pasta ate voce rodar `init` ou `link`.
+
+Todo subcomando tambem aceita flags pra forcar explicitamente, sem depender do vinculo:
+
+```bash
+railway variable set CHAVE=valor -p <PROJECT_ID> -s <SERVICO> -e <AMBIENTE>
+```
+
+Na pratica: vincule uma vez com `init`/`link` e rode tudo de dentro da pasta. As flags servem pra casos pontuais (script, CI, ou operar outro projeto sem sair do diretorio atual).
+
+> **Se aparecer "Deploys have been paused temporarily" ou "Limited Access":** nao e erro no seu codigo nem na sua configuracao. E o Railway limitando deploys do plano Hobby em horario de pico ou durante instabilidade da infra deles (contas Pro/Enterprise tem prioridade).
+>
+> **Atencao:** essa mensagem pode **abortar o `railway init` antes de criar o projeto**. Confirme antes de seguir:
+>
+> ```bash
+> railway list     # o projeto novo aparece na lista?
+> railway status   # a pasta ficou vinculada?
+> ```
+>
+> Se o projeto nao aparecer, o init nao completou: repita `railway init` mais tarde. Se o projeto foi criado mas a pasta nao ficou vinculada, use `railway link` (nao rode `init` de novo, senao cria um projeto duplicado). Status da plataforma em https://status.railway.com. Plano Pro remove essa fila.
+
+```bash
+# Variaveis de ambiente: aqui entram os 3 segredos gerados na etapa 1.
+# Roda de dentro da pasta vinculada, por isso nao precisa dizer o projeto.
+railway variable set ADMIN_USER=huxley --skip-deploys
+railway variable set ADMIN_PASSWORD_HASH='<hash bcrypt gerado>' --skip-deploys
+railway variable set API_TOKEN='<token gerado>' --skip-deploys
+railway variable set SECRET_KEY='<chave gerada>' --skip-deploys
+railway variable set DATA_DIR=/data
+```
+
+`--skip-deploys` evita que cada variavel dispare um deploy separado; a ultima (sem a flag) aciona um deploy so, ja com tudo no lugar. Use aspas simples nos valores: o hash bcrypt tem `$`, que o shell interpretaria.
 
 `DATA_DIR=/data` diz pro backend onde procurar o certificado e o banco SQLite dentro do container. Precisa bater exatamente com o caminho do volume que vem a seguir.
 
@@ -139,7 +176,9 @@ Use o numero do pedido como `ref_externa` (ex.: `woo-1234`). **Por que:** se o w
 
 | Sintoma | Causa provavel | Fix |
 |---|---|---|
-| "Deploys have been paused temporarily" no `railway init` ou `railway up` | Fila do plano Hobby em horario de pico, ou instabilidade pontual da plataforma - nao e erro seu | Aguarde (geralmente minutos); confira https://status.railway.com; upgrade pra Pro pula a fila |
+| "Deploys have been paused temporarily" no `railway init` ou `railway up` | Fila do plano Hobby em horario de pico, ou instabilidade da plataforma - nao e erro seu, mas pode abortar o `init` sem criar o projeto | Cheque com `railway list` e `railway status`; se o projeto nao existe, repita o `init` mais tarde; se existe mas a pasta nao esta vinculada, use `railway link`. Status em https://status.railway.com |
+| "No linked project found" em qualquer comando | a pasta nao esta vinculada a nenhum projeto (o vinculo mora em `~/.railway/config.json`, por caminho de diretorio) | `railway link` de dentro de `~/Sites/nfse-sp` e escolha o projeto; ou passe `-p <PROJECT_ID>` no comando |
+| Comando afetou o projeto errado | voce rodou de outra pasta, vinculada a outro projeto | `railway status` antes de operar; ou seja explicito com `-p/-s/-e` |
 | 401 no login com senha certa | hash bcrypt colado errado (cortado ou com escape do `$`) | recole o hash gerado; em `.env` local use aspas simples ao redor do valor |
 | 409 "Nenhum certificado configurado" | upload nunca foi feito, ou foi feito sem o volume `/data` montado (some no redeploy seguinte) | confirme o volume em Settings > Volumes e reenvie o `.pfx` pela tela Certificado |
 | Erro 1002 da prefeitura | pedido caiu no endpoint antigo, que nao aceita o layout v2 | conferir que a URL usada e `nfews.prefeitura.sp.gov.br/lotenfe.asmx` (ja e o default do codigo, mas confirme que nao foi sobrescrita) |
