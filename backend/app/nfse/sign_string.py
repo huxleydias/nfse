@@ -10,6 +10,15 @@ from datetime import date
 from .utils import so_digitos, valor_centavos
 
 
+def build_cancelamento_sign_string(inscricao: str, numero_nfse: str) -> str:
+    """String de assinatura de cancelamento: 20 posicoes.
+
+    Inscricao municipal com 8 posicoes + numero da NFS-e com 12, ambos com
+    zeros a esquerda (tpAssinaturaCancelamento do XSD).
+    """
+    return so_digitos(inscricao).zfill(8) + so_digitos(numero_nfse).zfill(12)
+
+
 def _indicador_doc(pessoa: dict) -> tuple[str, str]:
     """Retorna (indicador, documento com 14 posicoes)."""
     cnpj = so_digitos(pessoa.get("cnpj", ""))

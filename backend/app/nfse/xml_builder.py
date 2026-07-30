@@ -155,5 +155,40 @@ def _build_rps(root, prestador: dict, rps: dict, assinatura_b64: str):
     return rps_el
 
 
+def build_pedido_cancelamento(prestador: dict, numero_nfse: str,
+                              assinatura_cancelamento_b64: str) -> etree._Element:
+    """Monta PedidoCancelamentoNFe v2 para uma NFS-e."""
+    root = etree.Element(f"{{{NFE_NS}}}PedidoCancelamentoNFe", nsmap={"p1": NFE_NS})
+    cab = _el(root, "Cabecalho")
+    cab.set("Versao", "2")
+    remetente = _el(cab, "CPFCNPJRemetente")
+    _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
+    _el(cab, "transacao", "true")
+
+    detalhe = _el(root, "Detalhe")
+    chave = _el(detalhe, "ChaveNFe")
+    _el(chave, "InscricaoPrestador", so_digitos(prestador["inscricao_municipal"]))
+    _el(chave, "NumeroNFe", so_digitos(numero_nfse))
+    _el(detalhe, "AssinaturaCancelamento", assinatura_cancelamento_b64)
+    return root
+
+
+def build_pedido_consulta_periodo(prestador: dict, dt_inicio: date, dt_fim: date,
+                                  pagina: int = 1) -> etree._Element:
+    """Monta PedidoConsultaNFePeriodo v2 (notas emitidas no periodo)."""
+    root = etree.Element(f"{{{NFE_NS}}}PedidoConsultaNFePeriodo", nsmap={"p1": NFE_NS})
+    cab = _el(root, "Cabecalho")
+    cab.set("Versao", "2")
+    remetente = _el(cab, "CPFCNPJRemetente")
+    _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
+    contribuinte = _el(cab, "CPFCNPJ")
+    _el(contribuinte, "CNPJ", so_digitos(prestador["cnpj"]))
+    _el(cab, "Inscricao", so_digitos(prestador["inscricao_municipal"]))
+    _el(cab, "dtInicio", dt_inicio.isoformat())
+    _el(cab, "dtFim", dt_fim.isoformat())
+    _el(cab, "NumeroPagina", pagina)
+    return root
+
+
 def xml_to_string(root: etree._Element) -> str:
     return etree.tostring(root, encoding="unicode")
