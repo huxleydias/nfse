@@ -1,4 +1,4 @@
-# NFS-e SP
+# NFS-e
 
 Emissor standalone de NFS-e no webservice da Prefeitura de Sao Paulo, layout v2 (reforma tributaria IBS/CBS). Projeto independente da pasta punkmetrics: git proprio, deploy proprio no Railway.
 
@@ -47,6 +47,6 @@ backend/.venv/bin/python scripts/teste_envio_real.py
 
 ## Docs
 
-- Spec: `docs/superpowers/specs/2026-07-30-nfse-sp-design.md`
-- Plano: `docs/superpowers/plans/2026-07-30-nfse-sp.md`
+- Spec: `docs/superpowers/specs/2026-07-30-nfse-design.md`
+- Plano: `docs/superpowers/plans/2026-07-30-nfse.md`
 - Deploy: `docs/deploy-railway.md`

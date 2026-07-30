@@ -1,6 +1,6 @@
 # Deploy no Railway
 
-Guia para colocar o NFS-e SP no ar. Duas rotas: via CLI (recomendada) ou via dashboard. O projeto ja traz `Dockerfile` e `railway.toml` prontos, entao o Railway sabe como buildar e rodar a aplicacao sem configuracao manual de build.
+Guia para colocar o NFS-e no ar. Duas rotas: via CLI (recomendada) ou via dashboard. O projeto ja traz `Dockerfile` e `railway.toml` prontos, entao o Railway sabe como buildar e rodar a aplicacao sem configuracao manual de build.
 
 ## Por que Railway
 
@@ -9,7 +9,7 @@ O sistema precisa de dois recursos que a maioria das plataformas serverless (Ver
 ## Pre-requisitos
 
 - Conta no Railway (https://railway.com)
-- Repositorio no GitHub (ja feito: https://github.com/huxleydias/nfse-sp)
+- Repositorio no GitHub (ja feito: https://github.com/huxleydias/nfse)
 - Segredos gerados (etapa 1)
 
 ## 1. Gerar os segredos
@@ -48,8 +48,8 @@ railway login
 
 ```bash
 # Na pasta do projeto
-cd /Users/huxleydias/Sites/nfse-sp
-railway init --name nfse-sp
+cd /Users/huxleydias/Sites/nfse
+railway init --name nfse
 ```
 
 **O que esse comando faz:** cria um projeto novo dentro do seu workspace no Railway (o "container" que vai agrupar o servico, as variaveis e o volume) e **vincula a pasta local a esse projeto**. Se ele perguntar qual workspace usar, escolha o seu (ex.: PUNKMETRICS).
@@ -130,8 +130,8 @@ railway domain
 
 Util se preferir nao instalar a CLI, ou se quiser deploy automatico a cada push sem rodar `railway up` manualmente.
 
-1. O repo ja esta no GitHub: https://github.com/huxleydias/nfse-sp (privado)
-2. No Railway: **New Project** > **Deploy from GitHub repo** > selecione `nfse-sp`. Isso conecta o Railway ao repo: a partir daqui, todo push na branch principal aciona um deploy novo automaticamente.
+1. O repo ja esta no GitHub: https://github.com/huxleydias/nfse (privado)
+2. No Railway: **New Project** > **Deploy from GitHub repo** > selecione `nfse`. Isso conecta o Railway ao repo: a partir daqui, todo push na branch principal aciona um deploy novo automaticamente.
 3. Em **Variables**, adicione os mesmos 5 valores da etapa 2 (`ADMIN_USER`, `ADMIN_PASSWORD_HASH`, `API_TOKEN`, `SECRET_KEY`, `DATA_DIR=/data`). Sao a mesma coisa, so preenchidos pela interface em vez da CLI.
 4. Em **Settings** do servico, confirme que o volume esta montado em `/data` (o `railway.toml` ja declara isso; se por algum motivo nao aparecer, crie manualmente: **Volumes** > **New Volume** > mount path `/data`).
 5. **Settings** > **Networking** > **Generate Domain**: mesma funcao do `railway domain` da CLI.
@@ -177,7 +177,7 @@ Use o numero do pedido como `ref_externa` (ex.: `woo-1234`). **Por que:** se o w
 | Sintoma | Causa provavel | Fix |
 |---|---|---|
 | "Deploys have been paused temporarily" no `railway init` ou `railway up` | Fila do plano Hobby em horario de pico, ou instabilidade da plataforma - nao e erro seu, mas pode abortar o `init` sem criar o projeto | Cheque com `railway list` e `railway status`; se o projeto nao existe, repita o `init` mais tarde; se existe mas a pasta nao esta vinculada, use `railway link`. Status em https://status.railway.com |
-| "No linked project found" em qualquer comando | a pasta nao esta vinculada a nenhum projeto (o vinculo mora em `~/.railway/config.json`, por caminho de diretorio) | `railway link` de dentro de `~/Sites/nfse-sp` e escolha o projeto; ou passe `-p <PROJECT_ID>` no comando |
+| "No linked project found" em qualquer comando | a pasta nao esta vinculada a nenhum projeto (o vinculo mora em `~/.railway/config.json`, por caminho de diretorio) | `railway link` de dentro de `~/Sites/nfse` e escolha o projeto; ou passe `-p <PROJECT_ID>` no comando |
 | Comando afetou o projeto errado | voce rodou de outra pasta, vinculada a outro projeto | `railway status` antes de operar; ou seja explicito com `-p/-s/-e` |
 | 401 no login com senha certa | hash bcrypt colado errado (cortado ou com escape do `$`) | recole o hash gerado; em `.env` local use aspas simples ao redor do valor |
 | 409 "Nenhum certificado configurado" | upload nunca foi feito, ou foi feito sem o volume `/data` montado (some no redeploy seguinte) | confirme o volume em Settings > Volumes e reenvie o `.pfx` pela tela Certificado |

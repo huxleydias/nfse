@@ -1,4 +1,4 @@
-# NFS-e SP
+# NFS-e
 
 Emissor de NFS-e direto no webservice oficial da Prefeitura de Sao Paulo (LoteNFe), sem intermediarios. Layout versao 2 da reforma tributaria (IBS/CBS) desde o inicio.
 

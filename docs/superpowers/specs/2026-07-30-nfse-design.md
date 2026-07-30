@@ -1,4 +1,4 @@
-# NFS-e SP: emissor direto no webservice da Prefeitura de São Paulo
+# NFS-e: emissor direto no webservice da Prefeitura de São Paulo
 
 Data: 2026-07-30
 Status: aprovado por Huxley (brainstorm seção a seção)
@@ -38,7 +38,7 @@ Descartado: codegen xsdata (centenas de classes geradas para manter), templates 
 ## Estrutura do repositório
 
 ```
-nfse-sp/
+nfse/
 ├── CLAUDE.md
 ├── README.md                   (setup, deploy, geração de secrets, uso da API)
 ├── .env.example
@@ -58,7 +58,7 @@ nfse-sp/
 └── railway.toml                (healthcheck /api/health, volume /data)
 ```
 
-Local de trabalho: `/Users/huxleydias/Sites/nfse-sp` (fora da pasta punkmetrics; repo aninhado sujaria o git da punkmetrics).
+Local de trabalho: `/Users/huxleydias/Sites/nfse` (fora da pasta punkmetrics; repo aninhado sujaria o git da punkmetrics).
 
 ## Domínio NFS-e (backend/app/nfse/)
 
