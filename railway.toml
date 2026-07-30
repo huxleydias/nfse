@@ -1,11 +1,13 @@
+# Config as code do Railway. Cobre apenas build e deploy.
+# ATENCAO: volume NAO se declara aqui (nao existe chave volumes no schema).
+# O volume em /data precisa ser criado pela CLI (railway volume add
+# --mount-path /data) ou pelo dashboard (Cmd+K > Add Volume). Sem ele, o
+# certificado .pfx e o banco SQLite somem a cada redeploy.
+
 [build]
-builder = "dockerfile"
+builder = "DOCKERFILE"
 
 [deploy]
 healthcheckPath = "/api/health"
 healthcheckTimeout = 120
-restartPolicyType = "on_failure"
-
-[[deploy.volumes]]
-mountPath = "/data"
-name = "nfse-data"
+restartPolicyType = "ON_FAILURE"

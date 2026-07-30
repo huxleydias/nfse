@@ -55,7 +55,7 @@ nfse/
 ├── frontend/                   (Vite + React + TS + shadcn)
 │   └── src/pages/              (login, notas, emitir, config, certificado)
 ├── Dockerfile                  (multi-stage: build frontend, imagem Python final)
-└── railway.toml                (healthcheck /api/health, volume /data)
+└── railway.toml                (healthcheck /api/health; volume e criado a parte)
 ```
 
 Local de trabalho: `/Users/huxleydias/Sites/nfse` (fora da pasta punkmetrics; repo aninhado sujaria o git da punkmetrics).
@@ -182,7 +182,7 @@ Log estruturado JSON por emissão (ref, RPS, resultado, duração), sem dados se
 ## Deploy (Railway)
 
 - Dockerfile multi-stage: stage 1 builda o frontend (node, gera dist), stage 2 Python slim com backend, dist e XSDs.
-- railway.toml: healthcheck `/api/health`, volume em `/data`.
+- railway.toml: healthcheck `/api/health`. O volume em `/data` nao cabe no railway.toml (schema so cobre build e deploy): criar por CLI `railway volume add --mount-path /data` ou pelo dashboard.
 - Push no GitHub aciona auto-deploy (ou `railway up` manual). Rollback pelos builds anteriores do Railway; SQLite no volume sobrevive a redeploy.
 
 ## Fases de entrega
