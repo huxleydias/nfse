@@ -107,6 +107,8 @@ Erros: `422` payload ou schema invalido, `400` recusa da prefeitura (codigos ori
 
 ## Deploy no Railway
 
+No ar em https://nfse-production-9338.up.railway.app (projeto `nfse`, workspace PUNKMETRICS).
+
 **Guia completo: [docs/deploy-railway.md](docs/deploy-railway.md)**
 
 Passo a passo com as duas rotas lado a lado (CLI e dashboard web) em cada etapa, explicando o motivo de cada uma:
