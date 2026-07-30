@@ -19,4 +19,7 @@ COPY --from=frontend /build/dist frontend/dist
 ENV DATA_DIR=/data
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--app-dir", "backend", "--host", "0.0.0.0", "--port", "8000"]
+# Plataformas de deploy (Railway entre elas) injetam a porta em PORT e o
+# healthcheck bate nela. Forma shell para expandir a variavel; 8000 e o
+# fallback local.
+CMD ["sh", "-c", "exec uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000}"]

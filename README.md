@@ -107,7 +107,21 @@ Erros: `422` payload ou schema invalido, `400` recusa da prefeitura (codigos ori
 
 ## Deploy no Railway
 
-Guia completo passo a passo: [docs/deploy-railway.md](docs/deploy-railway.md).
+**Guia completo: [docs/deploy-railway.md](docs/deploy-railway.md)**
+
+Passo a passo com as duas rotas lado a lado (CLI e dashboard web) em cada etapa, explicando o motivo de cada uma:
+
+1. Gerar os segredos (o que cada um protege)
+2. Criar o projeto (e como a CLI resolve qual projeto e o seu)
+3. Configurar as variaveis de ambiente
+4. Criar o volume persistente (obrigatorio: sem ele o certificado e o banco somem a cada redeploy)
+5. Fazer o deploy
+6. Gerar o dominio publico
+7. Primeira configuracao pela UI (certificado, prestador, servicos, modo teste)
+8. Integracao com n8n / WooCommerce
+9. Operacao do dia a dia (logs, redeploy, rollback, backup)
+
+O guia tambem traz uma tabela de problemas comuns (deploys pausados no plano Hobby, projeto nao vinculado, healthcheck falhando, erro 1002 da prefeitura).
 
 ## Estrutura
 
@@ -130,6 +144,15 @@ cd backend && .venv/bin/pytest
 114+ testes: vetores oficiais da string de assinatura v2 do manual, XML validado contra os XSDs oficiais, assinatura XMLDSig verificavel, fluxo completo com SOAP mockado, API com TestClient.
 
 ## Referencias
+
+Documentacao do projeto:
+
+- [Guia de deploy no Railway](docs/deploy-railway.md): CLI e dashboard, passo a passo
+- [Spec de design](docs/superpowers/specs/2026-07-30-nfse-design.md): arquitetura e decisoes
+- [Plano de implementacao](docs/superpowers/plans/2026-07-30-nfse.md): tasks e criterios de teste
+- `CLAUDE.md`: regras do projeto e fatos tecnicos do layout v2 que custaram caro descobrir
+
+Fontes externas:
 
 - Manual do webservice v3.3.7 (Prefeitura de Sao Paulo)
 - Schemas XSD v02-5 (reforma tributaria): `backend/schemas/`
