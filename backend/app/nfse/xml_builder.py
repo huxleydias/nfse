@@ -115,6 +115,10 @@ def build_pedido_envio_rps(prestador: dict, rps: dict, assinatura_b64: str) -> e
     _el(rps_el, "ExigibilidadeSuspensa", fiscal.get("exigibilidade_suspensa", 0))
     _el(rps_el, "NBS", fiscal["nbs"])
 
+    # Grupo gpPrestacao (obrigatorio): local da prestacao do servico.
+    # cLocPrestacao = codigo IBGE do municipio (3550308 = Sao Paulo).
+    _el(rps_el, "cLocPrestacao", so_digitos(str(fiscal.get("c_loc_prestacao", "3550308"))))
+
     ibscbs = _el(rps_el, "IBSCBS")
     _el(ibscbs, "finNFSe", fiscal.get("fin_nfse", 0))
     _el(ibscbs, "indFinal", fiscal.get("ind_final", 1))

@@ -62,6 +62,7 @@ class TestBuildPedido:
         assert texto(root, "ValorIPI") == "0.00"
         assert texto(root, "ExigibilidadeSuspensa") == "0"
         assert texto(root, "NBS") == "000000000"
+        assert texto(root, "cLocPrestacao") == "3550308"
         assert texto(root, "IBSCBS/finNFSe") == "0"
         assert texto(root, "IBSCBS/cIndOp") == "000000"
         assert texto(root, "IBSCBS/valores/trib/gIBSCBS/cClassTrib") == "000001"
