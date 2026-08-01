@@ -12,6 +12,25 @@ Emissor standalone de NFS-e no webservice da Prefeitura de Sao Paulo, layout v2 
 - Emissao real so com `modo_teste` desligado; o metodo de teste e `TesteEnvioLoteRPS` (recebe lote com 1 RPS).
 - Numeracao de RPS nunca regride: o contador em config so avanca. Numero queimado por falha de rede e aceitavel (prefeitura tolera gaps).
 
+## O mais importante: layout 1 vs layout 2
+
+A PunkMetrics e optante do **Simples Nacional**, e por isso emite no **layout 1** (pre reforma). Mandar layout 2 devolve:
+
+> Erro 641: "Contribuinte cadastrado como Simples Nacional na data informada. Devera ser utilizado o leiaute 1."
+
+A reforma (layout 2, IBS/CBS) so passa a valer para o Simples em **janeiro/2027**. Ate la, `layout: 1` na config (default). O toggle esta na tela Configuracao. Quando virar, e so ligar o layout 2: builder, assinatura, XSD e VersaoSchema ja seguem a config.
+
+Diferencas praticas entre os layouts:
+
+| | Layout 1 | Layout 2 |
+|---|---|---|
+| Inscricao na string de assinatura | 8 posicoes | 12 posicoes |
+| Campo 8 da assinatura | ValorServicos | Valor cobrado |
+| Valor no XML | `ValorServicos` | `ValorFinalCobrado` (choice com Inicial) |
+| Campos da reforma | nao existem | `NBS`, `cLocPrestacao`, grupo `IBSCBS` |
+| Cabecalho / VersaoSchema | `1` | `2` |
+| XSDs | `*_v01.xsd` | `*_v02.xsd` |
+
 ## Fatos tecnicos que custaram caro descobrir
 
 - Endpoint v2: `https://nfews.prefeitura.sp.gov.br/lotenfe.asmx`. O endpoint antigo (`nfe.prefeitura.sp.gov.br/ws/lotenfe.asmx`) NAO aceita layout 2 e devolve erro 1002.
