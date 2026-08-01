@@ -137,7 +137,7 @@ def _build_rps(root, prestador: dict, rps: dict, assinatura_b64: str):
 
     # xs:choice no XSD: ValorInicialCobrado OU ValorFinalCobrado.
     # Usamos ValorFinalCobrado: valor total da nota com tributos por dentro
-    # (calculo do fim para o inicio), que e como a PunkMetrics cobra.
+    # (calculo do fim para o inicio), o caso comum de servico com preco fechado.
     _el(rps_el, "ValorFinalCobrado", _dec(rps["valor"]))
 
     fiscal = rps["fiscal"]

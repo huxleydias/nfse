@@ -47,12 +47,12 @@ describe("ehCnpj", () => {
 describe("documentoValido", () => {
   it("aceita cpf e cnpj com digito verificador correto", () => {
     expect(documentoValido("111.444.777-35")).toBe(true)
-    expect(documentoValido("37.624.983/0001-47")).toBe(true)
+    expect(documentoValido("11.222.333/0001-81")).toBe(true)
   })
 
   it("recusa digito verificador errado", () => {
     expect(documentoValido("111.444.777-99")).toBe(false)
-    expect(documentoValido("37.624.983/0001-48")).toBe(false)
+    expect(documentoValido("11.222.333/0001-82")).toBe(false)
   })
 
   it("recusa sequencia repetida e documento incompleto", () => {

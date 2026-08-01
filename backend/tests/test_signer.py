@@ -36,7 +36,7 @@ class TestLoadPfx:
     def test_metadata(self, cert_e_chave):
         cert, _ = cert_e_chave
         meta = cert_metadata(cert)
-        assert "PUNKMETRICS TESTE" in meta["cn"]
+        assert "EMPRESA TESTE" in meta["cn"]
         assert meta["dias_restantes"] > 300
         assert not meta["vencido"]
 

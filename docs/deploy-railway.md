@@ -11,7 +11,7 @@ O sistema precisa de dois recursos que a maioria das plataformas serverless (Ver
 ## Pre-requisitos
 
 - Conta no Railway (https://railway.com)
-- Repositorio no GitHub (ja feito: https://github.com/huxleydias/nfse)
+- Repositorio deste projeto no GitHub (o seu fork ou clone)
 - Segredos gerados (etapa 1)
 
 ---
@@ -55,19 +55,19 @@ railway login
 `railway login` abre o navegador pra voce autorizar a CLI na sua conta. Depois:
 
 ```bash
-cd /Users/huxleydias/Sites/nfse
+cd /caminho/para/nfse
 railway init --name nfse
 ```
 
-Cria o projeto no seu workspace e **vincula a pasta local a ele** (ver caixa abaixo). Se perguntar qual workspace, escolha o seu (ex.: PUNKMETRICS).
+Cria o projeto no seu workspace e **vincula a pasta local a ele** (ver caixa abaixo). Se perguntar qual workspace, escolha o seu.
 
 ### Rota B: Dashboard
 
 1. Acesse https://railway.com/dashboard
 2. Botao **New Project** (canto superior direito)
 3. Escolha **Deploy from GitHub repo**
-4. Primeira vez: o Railway pede pra conectar sua conta do GitHub. Clique em **Configure GitHub App**, autorize e libere o repositorio `nfse` (repo privado precisa ser marcado explicitamente nessa tela do GitHub)
-5. De volta no Railway, selecione `huxleydias/nfse` na lista
+4. Primeira vez: o Railway pede pra conectar sua conta do GitHub. Clique em **Configure GitHub App**, autorize e libere o repositorio (repo privado precisa ser marcado explicitamente nessa tela do GitHub)
+5. De volta no Railway, selecione o repositorio na lista
 6. O Railway cria projeto e servico, detecta o `Dockerfile` e ja comeca o primeiro build
 
 Esse primeiro build **sobe sem as variaveis e sem o volume**, entao provavelmente falha ou sobe com erro. Normal: as etapas 3 e 4 resolvem e o deploy bom vem na etapa 5.
@@ -115,7 +115,7 @@ Vantagem dessa rota: o repo ja fica conectado, entao todo `git push` na branch p
 
 | Variavel | Valor |
 |---|---|
-| `ADMIN_USER` | `huxley` (ou o usuario que preferir pro login) |
+| `ADMIN_USER` | usuario de login da UI (ex.: `admin`) |
 | `ADMIN_PASSWORD_HASH` | o hash bcrypt gerado na etapa 1 |
 | `API_TOKEN` | o token gerado na etapa 1 |
 | `SECRET_KEY` | a chave gerada na etapa 1 |
@@ -126,7 +126,7 @@ Vantagem dessa rota: o repo ja fica conectado, entao todo `git push` na branch p
 ### Rota A: CLI
 
 ```bash
-railway variable set ADMIN_USER=huxley --skip-deploys
+railway variable set ADMIN_USER=admin --skip-deploys
 railway variable set ADMIN_PASSWORD_HASH='<hash bcrypt gerado>' --skip-deploys
 railway variable set API_TOKEN='<token gerado>' --skip-deploys
 railway variable set SECRET_KEY='<chave gerada>' --skip-deploys
@@ -142,7 +142,7 @@ railway variable set DATA_DIR=/data
 3. Caminho rapido: botao **RAW Editor**, cole tudo de uma vez no formato `.env` e salve:
 
 ```
-ADMIN_USER=huxley
+ADMIN_USER=admin
 ADMIN_PASSWORD_HASH=<hash bcrypt gerado>
 API_TOKEN=<token gerado>
 SECRET_KEY=<chave gerada>
@@ -233,14 +233,15 @@ Com o servico no ar, a aplicacao ainda nao sabe quem e o prestador de servico ne
 2. Tela **Certificado**: envie o `.pfx` do certificado A1 e a senha dele. O sistema valida na hora (tenta abrir o certificado com a senha) e, se der certo, cifra a senha antes de salvar: ela nunca fica legivel no banco
 3. Tela **Configuracao**:
    - **Prestador**: CNPJ, CCM (inscricao municipal), razao social, e-mail. Identificam quem esta emitindo a nota
-   - **RPS**: serie e proximo numero. A serie `PM` ja teve os numeros 1 a 7 usados pelo emissor antigo (via Focus NFe) em abril/2026, por isso o contador nasce em 8, pra nunca repetir numero
-   - **Servicos**: cadastre `05762` (cursos/mentoria) e `02881` (consultoria) com os campos NBS, cClassTrib e cIndOp da reforma tributaria (ver aviso abaixo)
+   - **Leiaute**: 1 para Simples Nacional e MEI, 2 para Regime Normal (ver o README)
+   - **RPS**: serie e proximo numero. Se a empresa ja emitiu RPS nessa serie por outro sistema, comece o contador acima do ultimo numero usado, senao a prefeitura recusa por duplicidade
+   - **Servicos**: cadastre os codigos municipais que a empresa usa, com aliquota do ISS e, para o leiaute 2, os campos NBS, cClassTrib e cIndOp (ver aviso abaixo)
    - Deixe **modo teste ATIVO**: isso faz a aplicacao chamar o metodo `TesteEnvioLoteRPS` da prefeitura, que valida tudo (certificado, assinatura, campos obrigatorios) mas garantidamente NAO emite nota real
 4. Rode o teste sem risco: aba **Emitir**, botao **Testar emissao**. Manda um pedido de verdade pra prefeitura, mas com modo teste ativo a resposta so confirma "validado" ou aponta erro: nenhuma nota e gerada
 5. So depois do teste passar E de confirmar os codigos fiscais com o contador: desligue o modo teste na Configuracao. So a partir dai a emissao gera notas reais
 6. Primeira nota real: emita uma de R$ 1,00 pra voce mesmo e cancele em seguida pela lista de Notas. Confirma o fluxo completo (emissao + cancelamento) antes de emitir pra cliente
 
-> **Atencao, nao pule isso:** os valores de `cClassTrib` e `cIndOp` que vem pre-preenchidos sao placeholders do exemplo da documentacao da prefeitura, nao valores fiscais reais da PunkMetrics. Confirme com o contador antes de desligar o modo teste: errar esses campos gera nota com classificacao tributaria incorreta.
+> **Atencao, nao pule isso:** `cClassTrib` e `cIndOp` sao codigos fiscais que dependem da atividade e do regime da empresa. Confirme com a contabilidade antes de desligar o modo teste: errar esses campos gera nota com classificacao tributaria incorreta. Eles so entram no XML no leiaute 2.
 
 ---
 
@@ -271,7 +272,7 @@ Use o numero do pedido como `ref_externa` (ex.: `woo-1234`). **Por que:** se o w
 
 O SQLite vive no volume `/data`, que persiste entre deploys, mas **nao tem backup automatico fora do Railway**: faca snapshot manual de vez em quando.
 
-**Certificado A1 vence anualmente.** A tela Certificado da aplicacao alerta quando faltam menos de 30 dias. Renove e envie o novo `.pfx` pela propria UI (aproveite pra trocar a senha do certificado, ja que a senha do certificado atual ficou exposta no historico do git do projeto antigo).
+**Certificado A1 vence anualmente.** A tela Certificado da aplicacao alerta quando faltam menos de 30 dias. Renove e envie o novo `.pfx` pela propria UI.
 
 ---
 
@@ -280,11 +281,12 @@ O SQLite vive no volume `/data`, que persiste entre deploys, mas **nao tem backu
 | Sintoma | Causa provavel | Fix |
 |---|---|---|
 | "Deploys have been paused temporarily" no `railway init` ou `railway up` | Fila do plano Hobby em horario de pico, ou instabilidade da plataforma. Nao e erro seu, mas pode abortar o `init` sem criar o projeto | Cheque com `railway list` / `railway status` (ou o dashboard); se o projeto nao existe, repita mais tarde; se existe mas a pasta nao esta vinculada, use `railway link`. Status em https://status.railway.com |
-| "No linked project found" em qualquer comando da CLI | a pasta nao esta vinculada (o vinculo mora em `~/.railway/config.json`, por caminho de diretorio) | `railway link` de dentro de `~/Sites/nfse`; ou passe `-p <PROJECT_ID>` no comando |
+| "No linked project found" em qualquer comando da CLI | a pasta nao esta vinculada (o vinculo mora em `~/.railway/config.json`, por caminho de diretorio) | `railway link` de dentro da pasta do projeto; ou passe `-p <PROJECT_ID>` no comando |
 | Comando da CLI afetou o projeto errado | rodou de outra pasta, vinculada a outro projeto | `railway status` antes de operar; ou seja explicito com `-p/-s/-e` |
 | Build passa, mas healthcheck falha com "service unavailable" e o log mostra `Uvicorn running on http://0.0.0.0:8000` | a app esta ouvindo numa porta fixa, e o Railway injeta a porta dele em `PORT` | ja corrigido no `Dockerfile` do projeto (`--port ${PORT:-8000}`, em forma shell pra expandir a variavel). Se alterar o CMD, mantenha esse padrao |
 | Servico sobe e cai (healthcheck falhando) | falta `SECRET_KEY` (a app aborta no boot sem ela) | confira as 5 variaveis na aba Variables e redeploy |
 | 401 no login com a senha certa | hash bcrypt colado errado (cortado, ou com aspas viradas parte do valor no RAW Editor) | regenere o hash e recole: no RAW Editor sem aspas, no terminal com aspas simples |
 | 409 "Nenhum certificado configurado" depois de ja ter enviado o .pfx | volume nao existe ou nao esta em `/data`: o arquivo sumiu no ultimo redeploy | crie ou corrija o volume (etapa 4) e reenvie o `.pfx` pela tela Certificado |
-| Erro 1002 da prefeitura | pedido caiu no endpoint antigo, que nao aceita layout v2 | confirmar que a URL usada e `nfews.prefeitura.sp.gov.br/lotenfe.asmx` (default do codigo) |
+| Prefeitura recusa citando versao de schema | pedido caiu no endpoint antigo, que nao aceita o leiaute 2 | confirmar que a URL usada e `nfews.prefeitura.sp.gov.br/lotenfe.asmx` (default do codigo) |
+| Prefeitura recusa citando o leiaute | leiaute configurado nao corresponde ao regime tributario da empresa | trocar o toggle em Configuracao > Layout do XML (ver README) |
 | 502 "Prefeitura fora do ar" | instabilidade do webservice da prefeitura, nao da aplicacao | tentar de novo depois; nenhuma nota fica pela metade (o numero de RPS pode ficar queimado, o que a prefeitura aceita) |

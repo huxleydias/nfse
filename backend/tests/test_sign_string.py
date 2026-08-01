@@ -84,8 +84,8 @@ class TestFormatacao:
         assert s.endswith("2658" + "3" + "0" * 14)
 
     def test_inscricao_completa_com_zeros(self):
-        s = build_sign_string_v2(**{**BASE, "inscricao": "66467799"}, tomador={})
-        assert s.startswith("000066467799")
+        s = build_sign_string_v2(**{**BASE, "inscricao": "12345678"}, tomador={})
+        assert s.startswith("000012345678")
 
     def test_serie_menor_preenche_espacos(self):
         s = build_sign_string_v2(**{**BASE, "serie": "PM"}, tomador={})

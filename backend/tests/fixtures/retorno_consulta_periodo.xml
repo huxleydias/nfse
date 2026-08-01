@@ -5,13 +5,13 @@
   </Cabecalho>
   <NFe xmlns="">
     <ChaveNFe>
-      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <InscricaoPrestador>12345678</InscricaoPrestador>
       <NumeroNFe>1234</NumeroNFe>
       <CodigoVerificacao>ABCD1234</CodigoVerificacao>
     </ChaveNFe>
     <DataEmissaoNFe>2026-07-30T10:00:00</DataEmissaoNFe>
     <ChaveRPS>
-      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <InscricaoPrestador>12345678</InscricaoPrestador>
       <SerieRPS>PM</SerieRPS>
       <NumeroRPS>8</NumeroRPS>
     </ChaveRPS>
@@ -22,11 +22,11 @@
       <CPF>11144477735</CPF>
     </CPFCNPJTomador>
     <RazaoSocialTomador>Fulano de Tal</RazaoSocialTomador>
-    <Discriminacao>Curso IA para Designers</Discriminacao>
+    <Discriminacao>Servico de exemplo</Discriminacao>
   </NFe>
   <NFe xmlns="">
     <ChaveNFe>
-      <InscricaoPrestador>66467799</InscricaoPrestador>
+      <InscricaoPrestador>12345678</InscricaoPrestador>
       <NumeroNFe>1235</NumeroNFe>
       <CodigoVerificacao>EFGH5678</CodigoVerificacao>
     </ChaveNFe>

@@ -35,7 +35,7 @@ export default function Login() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-center text-xl">
-            NFS-e <span className="text-primary">PunkMetrics</span>
+            <span className="text-primary">NFS-e</span> Sao Paulo
           </CardTitle>
         </CardHeader>
         <CardContent>

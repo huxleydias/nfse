@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
@@ -12,6 +13,16 @@ const links = [
 
 export default function Layout() {
   const navigate = useNavigate()
+  // A marca no cabecalho vem da razao social configurada, nao do codigo:
+  // cada instalacao mostra a propria empresa.
+  const [empresa, setEmpresa] = useState("")
+
+  useEffect(() => {
+    api
+      .obterConfig()
+      .then((c) => setEmpresa(c.prestador.razao_social ?? ""))
+      .catch(() => setEmpresa(""))
+  }, [])
 
   async function sair() {
     await api.logout()
@@ -24,7 +35,15 @@ export default function Layout() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-8">
             <span className="text-lg font-bold">
-              NFS-e <span className="text-primary">PunkMetrics</span>
+              <span className="text-primary">NFS-e</span>
+              {empresa && (
+                <span
+                  className="ml-2 text-sm font-normal text-muted-foreground"
+                  title={empresa}
+                >
+                  {empresa.length > 32 ? `${empresa.slice(0, 32)}...` : empresa}
+                </span>
+              )}
             </span>
             <nav className="flex gap-1">
               {links.map((l) => (

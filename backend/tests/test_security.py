@@ -7,7 +7,7 @@ from fastapi import HTTPException
 def env(monkeypatch):
     hash_ = bcrypt.hashpw(b"senha-forte", bcrypt.gensalt()).decode()
     monkeypatch.setenv("SECRET_KEY", "chave-de-teste-para-fernet-e-sessao")
-    monkeypatch.setenv("ADMIN_USER", "huxley")
+    monkeypatch.setenv("ADMIN_USER", "admin")
     monkeypatch.setenv("ADMIN_PASSWORD_HASH", hash_)
     monkeypatch.setenv("API_TOKEN", "token-api-de-teste-com-32-chars-ok")
 
@@ -15,11 +15,11 @@ def env(monkeypatch):
 class TestLogin:
     def test_senha_certa(self):
         from app.core.security import verificar_login
-        assert verificar_login("huxley", "senha-forte")
+        assert verificar_login("admin", "senha-forte")
 
     def test_senha_errada(self):
         from app.core.security import verificar_login
-        assert not verificar_login("huxley", "senha-errada")
+        assert not verificar_login("admin", "senha-errada")
 
     def test_user_errado(self):
         from app.core.security import verificar_login
@@ -28,17 +28,17 @@ class TestLogin:
     def test_sem_hash_configurado(self, monkeypatch):
         from app.core.security import verificar_login
         monkeypatch.setenv("ADMIN_PASSWORD_HASH", "")
-        assert not verificar_login("huxley", "senha-forte")
+        assert not verificar_login("admin", "senha-forte")
 
 
 class TestSessao:
     def test_roundtrip(self):
         from app.core.security import criar_sessao, validar_sessao
-        assert validar_sessao(criar_sessao("huxley"))
+        assert validar_sessao(criar_sessao("admin"))
 
     def test_token_adulterado(self):
         from app.core.security import criar_sessao, validar_sessao
-        assert not validar_sessao(criar_sessao("huxley") + "x")
+        assert not validar_sessao(criar_sessao("admin") + "x")
 
     def test_lixo(self):
         from app.core.security import validar_sessao
@@ -59,7 +59,7 @@ class TestBearerOuSessao:
 
     def test_sessao_valida(self):
         from app.core.security import bearer_ou_sessao, criar_sessao
-        bearer_ou_sessao(authorization=None, nfse_sessao=criar_sessao("huxley"))
+        bearer_ou_sessao(authorization=None, nfse_sessao=criar_sessao("admin"))
 
     def test_nada(self):
         from app.core.security import bearer_ou_sessao

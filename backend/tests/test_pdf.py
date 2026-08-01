@@ -13,22 +13,22 @@ class RespostaFake:
 
 class TestMontarUrl:
     def test_url_com_chave_da_nota(self):
-        url = montar_url_pdf("66467799", "1594", "XLSH4APE")
+        url = montar_url_pdf("12345678", "1594", "XLSH4APE")
         assert url.startswith(
             "https://nfe.prefeitura.sp.gov.br/contribuinte/notaprintpdf.aspx?"
         )
-        assert "inscricao=66467799" in url
+        assert "inscricao=12345678" in url
         assert "nf=1594" in url
         assert "verificacao=XLSH4APE" in url
 
     def test_limpa_pontuacao_da_inscricao(self):
-        assert "inscricao=66467799" in montar_url_pdf("664.677-99", "1", "X")
+        assert "inscricao=12345678" in montar_url_pdf("123.456-78", "1", "X")
 
 
 class TestBaixarPdf:
     def test_pdf_valido(self, monkeypatch):
         monkeypatch.setattr(requests, "get", lambda *a, **kw: RespostaFake())
-        assert baixar_pdf("66467799", "1594", "XLSH4APE").startswith(b"%PDF")
+        assert baixar_pdf("12345678", "1594", "XLSH4APE").startswith(b"%PDF")
 
     def test_html_de_erro_com_status_200(self, monkeypatch):
         # A prefeitura devolve HTML com 200 quando a chave nao bate
@@ -37,7 +37,7 @@ class TestBaixarPdf:
             lambda *a, **kw: RespostaFake(content=b"<html>erro</html>"),
         )
         with pytest.raises(PdfIndisponivelError) as exc:
-            baixar_pdf("66467799", "1594", "ERRADO")
+            baixar_pdf("12345678", "1594", "ERRADO")
         assert "codigo" in str(exc.value)
 
     def test_http_erro(self, monkeypatch):
@@ -46,7 +46,7 @@ class TestBaixarPdf:
             lambda *a, **kw: RespostaFake(ok=False, status_code=500),
         )
         with pytest.raises(PdfIndisponivelError):
-            baixar_pdf("66467799", "1594", "XLSH4APE")
+            baixar_pdf("12345678", "1594", "XLSH4APE")
 
     def test_rede_fora(self, monkeypatch):
         def falha(*a, **kw):
@@ -54,4 +54,4 @@ class TestBaixarPdf:
 
         monkeypatch.setattr(requests, "get", falha)
         with pytest.raises(PdfIndisponivelError):
-            baixar_pdf("66467799", "1594", "XLSH4APE")
+            baixar_pdf("12345678", "1594", "XLSH4APE")

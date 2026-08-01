@@ -8,7 +8,7 @@ from app.nfse.xml_builder import (
 )
 
 
-PRESTADOR = {"cnpj": "37.624.983/0001-47", "inscricao_municipal": "66467799"}
+PRESTADOR = {"cnpj": "11.222.333/0001-81", "inscricao_municipal": "12345678"}
 
 FISCAL = {
     "nbs": "000000000",
@@ -35,7 +35,7 @@ def rps_base(**overrides):
         "valores_retencao": {},
         "codigo_servico": "05762",
         "aliquota": 0.02,
-        "discriminacao": "Curso IA para Designers - Pedido #999",
+        "discriminacao": "Servico de exemplo - Pedido #999",
         "tomador": {
             "cpf_cnpj": "111.444.777-35",
             "razao_social": "Fulano de Tal",
@@ -57,7 +57,7 @@ class TestBuildPedido:
         root = build_pedido_envio_rps(PRESTADOR, rps_base(), "QUJD")
         cab = root.find("Cabecalho")
         assert cab.get("Versao") == "2"
-        assert texto(root, "CPFCNPJRemetente/CNPJ") == "37624983000147"
+        assert texto(root, "CPFCNPJRemetente/CNPJ") == "11222333000181"
 
     def test_campos_v2_presentes(self):
         root = build_pedido_envio_rps(PRESTADOR, rps_base(), "QUJD")

@@ -27,10 +27,10 @@ def cfg_pronta(session):
     from app.models.config_store import get_config, save_config
     cfg = get_config(session)
     cfg["prestador"] = {
-        "cnpj": "37624983000147",
-        "inscricao_municipal": "66467799",
-        "razao_social": "PUNKMETRICS LTDA",
-        "email": "contato@punkmetrics.com",
+        "cnpj": "11222333000181",
+        "inscricao_municipal": "12345678",
+        "razao_social": "EMPRESA EXEMPLO LTDA",
+        "email": "contato@exemplo.com.br",
     }
     cfg["servicos"] = {
         "05762": {
@@ -85,7 +85,7 @@ def payload_ok(**overrides):
         "tomador": {"cpf_cnpj": "111.444.777-35", "razao_social": "Fulano"},
         "servico": "05762",
         "valor": 599.0,
-        "descricao": "Curso IA para Designers",
+        "descricao": "Servico de exemplo",
         "ref_externa": "woo-999",
     }
     d.update(overrides)
@@ -215,14 +215,14 @@ class TestLayout:
         from datetime import date
         from app.nfse.sign_string import build_sign_string_v1, build_sign_string_v2
         comum = dict(
-            inscricao="66467799", serie="PM", numero=8, data_emissao=date(2026, 8, 1),
+            inscricao="12345678", serie="PM", numero=8, data_emissao=date(2026, 8, 1),
             tributacao="T", status="N", iss_retido=False, deducoes=0.0,
             cod_servico="05762", tomador={"cpf": "11144477735"},
         )
         v1 = build_sign_string_v1(valor_servicos=599.0, **comum)
         v2 = build_sign_string_v2(valor_cobrado=599.0, **comum)
-        assert v1.startswith("66467799PM   ")
-        assert v2.startswith("000066467799PM   ")
+        assert v1.startswith("12345678PM   ")
+        assert v2.startswith("000012345678PM   ")
         assert len(v1) < len(v2)
 
 

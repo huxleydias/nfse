@@ -15,8 +15,8 @@ SENHA_PFX = "senha-teste-123"
 def pfx_bytes():
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     nome = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, "PUNKMETRICS TESTE:37624983000147"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "PunkMetrics Teste"),
+        x509.NameAttribute(NameOID.COMMON_NAME, "EMPRESA TESTE:11222333000181"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Empresa Teste"),
     ])
     agora = datetime.now(timezone.utc)
     cert = (

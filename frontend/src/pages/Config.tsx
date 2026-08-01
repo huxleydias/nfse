@@ -133,9 +133,9 @@ export default function Config() {
                 Layout {cfg.layout === 2 ? "2 (reforma IBS/CBS)" : "1 (pre reforma)"}
               </p>
               <p className="text-sm text-muted-foreground">
-                Optante do Simples Nacional precisa usar o layout 1 ate a reforma valer
-                para o regime (janeiro/2027). Com layout 2 a prefeitura recusa com o erro
-                641.
+                Optantes do Simples Nacional e MEI usam o layout 1 ate 04/01/2027.
+                Empresas do Regime Normal usam o layout 2 desde 03/08/2026. Enviar o
+                layout errado para o regime faz a prefeitura recusar a nota.
               </p>
             </div>
           </div>
@@ -176,7 +176,7 @@ export default function Config() {
               onChange={(e) =>
                 setPrestador("inscricao_municipal", mascaraCodigo(e.target.value, 12))
               }
-              placeholder="66467799"
+              placeholder="12345678"
               inputMode="numeric"
             />
             <p className="text-xs text-muted-foreground">So digitos, ate 12</p>

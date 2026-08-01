@@ -20,7 +20,7 @@ class TestValorCentavos:
 
 class TestSoDigitos:
     def test_cnpj_formatado(self):
-        assert so_digitos("37.624.983/0001-47") == "37624983000147"
+        assert so_digitos("11.222.333/0001-81") == "11222333000181"
 
     def test_vazio_e_none(self):
         assert so_digitos("") == ""
@@ -43,10 +43,10 @@ class TestValidarCpf:
 
 class TestValidarCnpj:
     def test_valido(self):
-        assert validar_cnpj("37.624.983/0001-47")
+        assert validar_cnpj("11.222.333/0001-81")
 
     def test_invalido(self):
-        assert not validar_cnpj("37.624.983/0001-48")
+        assert not validar_cnpj("11.222.333/0001-82")
 
     def test_repetido(self):
         assert not validar_cnpj("11111111111111")

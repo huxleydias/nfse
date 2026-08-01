@@ -23,9 +23,7 @@ A prefeitura aceita dois leiautes de XML e **o regime tributario da empresa deci
 | Simples Nacional e MEI | **1** | 4 de janeiro de 2027 |
 | Regime Normal (Lucro Real e Presumido, CRT 3) | 2 | ja obrigatorio desde 3 de agosto de 2026 |
 
-A PunkMetrics e optante do Simples Nacional, entao o sistema vem configurado com **leiaute 1**. Enviar leiaute 2 nesse regime devolve:
-
-> Erro 641: "Contribuinte cadastrado como Simples Nacional na data informada. Devera ser utilizado o leiaute 1."
+O padrao do sistema e o **leiaute 1**, que atende Simples Nacional e MEI, hoje a maioria dos emissores. Se a empresa estiver no Regime Normal, mude para o 2 antes de emitir. Enviar o leiaute que nao corresponde ao regime faz a prefeitura recusar a nota, com uma mensagem apontando qual leiaute usar.
 
 Onde muda: **Configuracao > Layout do XML**. O toggle troca leiaute 1 e 2, e tudo mais acompanha sozinho (builder do XML, string de assinatura, XSD de validacao e o `VersaoSchema` do envelope SOAP). Quando a reforma valer para o Simples, basta ligar o 2.
 
@@ -40,7 +38,7 @@ Diferencas entre os leiautes:
 | Cabecalho e `VersaoSchema` | `1` | `2` |
 | XSDs usados | `*_v01.xsd` | `*_v02.xsd` |
 
-No leiaute 1 os campos NBS, cClassTrib e cIndOp continuam salvos na configuracao de cada servico, mas nao entram no XML. Confirme os valores com o contador antes de virar para o leiaute 2.
+No leiaute 1 os campos NBS, cClassTrib e cIndOp continuam salvos na configuracao de cada servico, mas nao entram no XML. Confirme esses valores com a contabilidade da empresa antes de virar para o leiaute 2: sao codigos fiscais que variam por atividade e regime.
 
 Atencao: NT 2025.002, grupo W03, Imposto Seletivo e `pDevTrib` sao da NF-e de mercadorias (modelo 55, SEFAZ nacional) e nao existem na NFS-e municipal de Sao Paulo. O leiaute da NFS-e paulistana e o do manual do webservice, nao o da NT.
 
@@ -94,7 +92,7 @@ set -a && source .env && set +a
 backend/.venv/bin/uvicorn app.main:app --app-dir backend --port 8000
 ```
 
-Abra http://localhost:8000, faca login, envie o certificado na tela Certificado e preencha a Configuracao (prestador, servicos, campos IBS/CBS).
+Abra http://localhost:8000, faca login, envie o certificado na tela Certificado e preencha a Configuracao (prestador, servicos, leiaute).
 
 Para desenvolvimento do frontend com hot reload: `cd frontend && npm run dev` (proxy de `/api` para a porta 8000).
 
@@ -127,7 +125,7 @@ curl -X POST https://SEU-DOMINIO/api/notas \
     },
     "servico": "05762",
     "valor": 599.00,
-    "descricao": "Curso IA para Designers - Pedido #1234",
+    "descricao": "Servico prestado - Pedido #1234",
     "ref_externa": "woo-1234"
   }'
 ```
@@ -150,8 +148,6 @@ Outros endpoints:
 Erros: `422` payload ou schema invalido, `400` recusa da prefeitura (codigos originais no corpo), `409` certificado ausente/vencido ou ref em processamento, `502` prefeitura fora do ar.
 
 ## Deploy no Railway
-
-No ar em https://nfse-production-9338.up.railway.app (projeto `nfse`, workspace PUNKMETRICS).
 
 **Guia completo: [docs/deploy-railway.md](docs/deploy-railway.md)**
 
@@ -187,7 +183,31 @@ docs/                 spec, plano e guia de deploy
 cd backend && .venv/bin/pytest
 ```
 
-141 testes no backend (pytest) e 17 de mascaras no frontend (vitest): vetores oficiais da string de assinatura v2 do manual, XML validado contra os XSDs oficiais, assinatura XMLDSig verificavel, fluxo completo com SOAP mockado, API com TestClient.
+141 testes no backend (pytest) e 17 no frontend (vitest): vetores oficiais da string de assinatura do manual, XML validado contra os XSDs oficiais nos dois leiautes, assinatura XMLDSig verificavel, fluxo completo com SOAP mockado, API com TestClient e mascaras de entrada.
+
+Nenhum teste toca a rede: o cliente SOAP e o download do PDF sao mockados, e o certificado e um A1 self-signed gerado em memoria pela fixture. Da pra rodar a suite inteira sem certificado nem credencial.
+
+## Contribuindo
+
+Issues e pull requests sao bem-vindos. Antes de abrir um PR:
+
+```bash
+cd backend && .venv/bin/pytest      # 141 testes
+cd ../frontend && npm test          # 17 testes
+```
+
+Convencoes do projeto:
+
+- Nada especifico de uma empresa em codigo, teste ou doc: sem CNPJ real, inscricao municipal real, dominio de deploy ou razao social. Os testes usam CNPJ ficticio `11222333000181` e "EMPRESA EXEMPLO LTDA"
+- Mensagens de UI, comentarios e commits em portugues
+- Mudanca no XML enviado a prefeitura precisa de teste que valide contra os XSDs oficiais em `backend/schemas/`
+- Se a prefeitura publicar XSD novo, substitua a pasta inteira e rode a suite
+
+Este projeto e independente e nao tem vinculo com a Prefeitura de Sao Paulo. Os XSDs em `backend/schemas/` sao os schemas publicos publicados por ela.
+
+## Licenca
+
+MIT. Veja [LICENSE](LICENSE).
 
 ## Referencias
 

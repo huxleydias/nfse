@@ -1,7 +1,7 @@
 # NFS-e: emissor direto no webservice da Prefeitura de São Paulo
 
 Data: 2026-07-30
-Status: aprovado por Huxley (brainstorm seção a seção)
+Status: aprovado (brainstorm seção a seção)
 
 ## Objetivo
 
@@ -13,7 +13,7 @@ Projeto independente: git próprio, README próprio, CLAUDE.md próprio. Deploy 
 
 - Manual oficial: `NFe_Web_Service-v3.3.7.pdf` (guia do webservice LoteNFe)
 - Schemas XSD v2: pasta `schemas-reformatributaria-v02-5` (copiar para `backend/schemas/`)
-- Referência de implementação: emissor SOAP v1 arquivado em `punkmetrics/archives/nfe-soap/emit_nfe.py` (assinatura XML funcionou em produção, 7 RPS emitidos na série PM em abril/2026)
+- Referência de implementação: um emissor SOAP de leiaute 1 já validado em produção, usado como base para a assinatura XML
 - Endpoint v2 (aceita layouts 1 e 2): `https://nfews.prefeitura.sp.gov.br/lotenfe.asmx`
 - Endpoint antigo `https://nfe.prefeitura.sp.gov.br/ws/lotenfe.asmx` NÃO aceita v2 (causa do erro 1002 visto no Focus)
 - Cabeçalho do XML: campo `Versao` igual a 2
@@ -25,7 +25,7 @@ Projeto independente: git próprio, README próprio, CLAUDE.md próprio. Deploy 
 | Decisão | Escolha | Raciocínio |
 |---|---|---|
 | Stack backend | Python + FastAPI | Reaproveita padrão do núcleo crypto/SOAP já testado em produção (emissor arquivado) |
-| Frontend | Vite + React + TS + Tailwind + shadcn (componentes via CLI do shadcn) | Pedido do Huxley; UI de qualidade com custo baixo |
+| Frontend | Vite + React + TS + Tailwind + shadcn (componentes via CLI do shadcn) | UI de qualidade com custo baixo |
 | Deploy | Railway, serviço único | Volume persistente para certificado e SQLite; FastAPI serve API e build estático; uma URL |
 | Construção do XML | lxml manual + validação XSD local antes de enviar | Controle total sobre C14N (assinatura exige byte exato); XSD local dá a garantia estrutural que codegen daria com fração do código |
 | API | Genérica, não acoplada a nenhum consumidor | n8n/WooCommerce transformam pedido em payload padrão fora do sistema |
@@ -58,7 +58,7 @@ nfse/
 └── railway.toml                (healthcheck /api/health; volume e criado a parte)
 ```
 
-Local de trabalho: `/Users/huxleydias/Sites/nfse` (fora da pasta punkmetrics; repo aninhado sujaria o git da punkmetrics).
+Repositório independente, com git próprio.
 
 ## Domínio NFS-e (backend/app/nfse/)
 
@@ -153,7 +153,7 @@ Payload de emissão:
 - Login da UI: `ADMIN_USER` + `ADMIN_PASSWORD_HASH` (bcrypt) no .env. README traz o comando de geração do hash. Sessão em cookie httpOnly assinado com `SECRET_KEY`, expira em 7 dias. Rate limit de 5 tentativas por minuto no login.
 - API: `API_TOKEN` no .env (mínimo 32 chars aleatórios, comando no README). Comparação em tempo constante.
 - Certificado: .pfx gravado em `/data/certs/` (volume, fora da imagem e do git). Senha cifrada com Fernet (chave derivada de `SECRET_KEY`) e salva no SQLite. Nunca em texto puro em disco, env, logs ou respostas. Certificado vencido bloqueia emissão. `GET /api/certificado` expõe apenas metadados.
-- Atenção herdada: a senha do certificado A1 atual vazou no histórico do git da punkmetrics. Rotacionar a senha do A1 quando possível.
+- Boa prática: trocar a senha do certificado A1 a cada renovação anual.
 - HTTPS pela borda do Railway. CORS restrito à própria origem (mesmo domínio). Dependências pinadas.
 
 Variáveis de ambiente: `ADMIN_USER`, `ADMIN_PASSWORD_HASH`, `API_TOKEN`, `SECRET_KEY`.
@@ -195,5 +195,5 @@ Log estruturado JSON por emissão (ref, RPS, resultado, duração), sem dados se
 
 ## Pendências fora do escopo de construção
 
-- Confirmar com o contador os valores reais de `cClassTrib` e `cIndOp` da PunkMetrics (Simples Nacional). Sistema deixa configurável por isso; usar placeholders do exemplo até a confirmação e não emitir nota de cliente antes de confirmar.
-- Rotação da senha do certificado A1 (vazada no histórico do git da punkmetrics).
+- Confirmar com a contabilidade os valores de `cClassTrib` e `cIndOp` da empresa. São configuráveis por isso; não emitir nota de cliente com os placeholders.
+- Definir a rotina de renovação anual do certificado A1.

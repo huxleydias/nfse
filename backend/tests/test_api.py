@@ -14,7 +14,7 @@ def api(tmp_path, monkeypatch, pfx_bytes):
     hash_ = bcrypt.hashpw(b"senha-forte", bcrypt.gensalt()).decode()
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("SECRET_KEY", "chave-de-teste-para-fernet-e-sessao")
-    monkeypatch.setenv("ADMIN_USER", "huxley")
+    monkeypatch.setenv("ADMIN_USER", "admin")
     monkeypatch.setenv("ADMIN_PASSWORD_HASH", hash_)
     monkeypatch.setenv("API_TOKEN", "token-api-de-teste-com-32-chars-ok")
 
@@ -32,7 +32,7 @@ def api(tmp_path, monkeypatch, pfx_bytes):
 
 @pytest.fixture
 def api_logada(api):
-    r = api.post("/api/auth/login", json={"usuario": "huxley", "senha": "senha-forte"})
+    r = api.post("/api/auth/login", json={"usuario": "admin", "senha": "senha-forte"})
     assert r.status_code == 200
     return api
 
@@ -49,10 +49,10 @@ def api_configurada(api_logada, pfx_bytes, monkeypatch):
     assert r.status_code == 200
     r = api.put("/api/config", json={
         "prestador": {
-            "cnpj": "37624983000147",
-            "inscricao_municipal": "66467799",
-            "razao_social": "PUNKMETRICS LTDA",
-            "email": "contato@punkmetrics.com",
+            "cnpj": "11222333000181",
+            "inscricao_municipal": "12345678",
+            "razao_social": "EMPRESA EXEMPLO LTDA",
+            "email": "contato@exemplo.com.br",
         },
         "servicos": {
             "05762": {
@@ -78,25 +78,25 @@ PAYLOAD = {
     "tomador": {"cpf_cnpj": "111.444.777-35", "razao_social": "Fulano"},
     "servico": "05762",
     "valor": 599.0,
-    "descricao": "Curso IA para Designers",
+    "descricao": "Servico de exemplo",
     "ref_externa": "woo-1",
 }
 
 
 class TestAuth:
     def test_login_ok(self, api):
-        r = api.post("/api/auth/login", json={"usuario": "huxley", "senha": "senha-forte"})
+        r = api.post("/api/auth/login", json={"usuario": "admin", "senha": "senha-forte"})
         assert r.status_code == 200
         assert "nfse_sessao" in r.cookies
 
     def test_login_errado(self, api):
-        r = api.post("/api/auth/login", json={"usuario": "huxley", "senha": "x"})
+        r = api.post("/api/auth/login", json={"usuario": "admin", "senha": "x"})
         assert r.status_code == 401
 
     def test_rate_limit(self, api):
         for _ in range(5):
-            api.post("/api/auth/login", json={"usuario": "huxley", "senha": "x"})
-        r = api.post("/api/auth/login", json={"usuario": "huxley", "senha": "x"})
+            api.post("/api/auth/login", json={"usuario": "admin", "senha": "x"})
+        r = api.post("/api/auth/login", json={"usuario": "admin", "senha": "x"})
         assert r.status_code == 429
 
     def test_rota_protegida_sem_auth(self, api):
@@ -219,7 +219,7 @@ class TestCertificadoAPI:
             data={"senha": SENHA_PFX},
         )
         assert r.status_code == 200
-        assert "PUNKMETRICS TESTE" in r.json()["certificado"]["cn"]
+        assert "EMPRESA TESTE" in r.json()["certificado"]["cn"]
         status = api_logada.get("/api/certificado").json()["certificado"]
         assert status["vencido"] is False
 

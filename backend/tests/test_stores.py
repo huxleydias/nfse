@@ -53,9 +53,9 @@ class TestConfigStore:
     def test_save_e_get(self, session):
         from app.models.config_store import get_config, save_config
         cfg = get_config(session)
-        cfg["prestador"]["cnpj"] = "37624983000147"
+        cfg["prestador"]["cnpj"] = "11222333000181"
         save_config(session, cfg)
-        assert get_config(session)["prestador"]["cnpj"] == "37624983000147"
+        assert get_config(session)["prestador"]["cnpj"] == "11222333000181"
 
     def test_alocar_numero_rps_sequencial(self, session):
         from app.models.config_store import alocar_numero_rps, get_config
@@ -83,7 +83,7 @@ class TestCertStore:
         )
         from tests.conftest import SENHA_PFX
         meta = salvar_certificado(session, pfx_bytes, SENHA_PFX)
-        assert "PUNKMETRICS TESTE" in meta["cn"]
+        assert "EMPRESA TESTE" in meta["cn"]
         cert, key = carregar_certificado(session)
         assert cert is not None
         assert metadata_certificado(session)["vencido"] is False

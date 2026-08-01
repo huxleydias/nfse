@@ -1,6 +1,6 @@
 # NFS-e
 
-Emissor standalone de NFS-e no webservice da Prefeitura de Sao Paulo, layout v2 (reforma tributaria IBS/CBS). Projeto independente da pasta punkmetrics: git proprio, deploy proprio no Railway.
+Emissor standalone de NFS-e no webservice da Prefeitura de Sao Paulo. Suporta os leiautes 1 (pre reforma) e 2 (reforma IBS/CBS). Projeto open source: nada especifico de uma empresa deve entrar no codigo, nos testes ou na documentacao.
 
 ## Regras do projeto
 
@@ -14,11 +14,14 @@ Emissor standalone de NFS-e no webservice da Prefeitura de Sao Paulo, layout v2 
 
 ## O mais importante: layout 1 vs layout 2
 
-A PunkMetrics e optante do **Simples Nacional**, e por isso emite no **layout 1** (pre reforma). Mandar layout 2 devolve:
+O leiaute do XML depende do **regime tributario** de quem emite, nao de uma escolha do sistema:
 
-> Erro 641: "Contribuinte cadastrado como Simples Nacional na data informada. Devera ser utilizado o leiaute 1."
+| Regime | Leiaute | Vira leiaute 2 em |
+|---|---|---|
+| Simples Nacional e MEI | 1 | 04/01/2027 |
+| Regime Normal (CRT 3) | 2 | ja obrigatorio desde 03/08/2026 |
 
-A reforma (layout 2, IBS/CBS) so passa a valer para o Simples em **janeiro/2027**. Ate la, `layout: 1` na config (default). O toggle esta na tela Configuracao. Quando virar, e so ligar o layout 2: builder, assinatura, XSD e VersaoSchema ja seguem a config.
+Default do sistema: `layout: 1` na config, com toggle na tela Configuracao. Enviar o leiaute que nao corresponde ao regime faz a prefeitura recusar a nota apontando qual usar. Builder, assinatura, XSD e VersaoSchema seguem esse campo, entao trocar o toggle basta.
 
 Diferencas praticas entre os layouts:
 
@@ -71,10 +74,11 @@ cd frontend && npm run build
 backend/.venv/bin/python scripts/teste_envio_real.py
 ```
 
-## Pendencias de negocio
+## Cuidados com dados de instalacao
 
-- Valores reais de `cClassTrib` e `cIndOp` (PunkMetrics, Simples Nacional) pendentes de confirmacao com o contador. Ate la, placeholders na config e nada de nota real para cliente.
-- Serie de RPS PM ja teve numeros 1 a 7 emitidos pelo emissor antigo (abril/2026). O contador nasce em 8; nunca reutilizar numeros anteriores nesta serie.
+- `cClassTrib` e `cIndOp` variam por atividade e regime: sao configuraveis de proposito, e a config nasce com placeholders. Nunca tratar os placeholders como valores fiscais validos.
+- Se a empresa ja emitiu RPS na serie por outro sistema, o contador precisa comecar acima do ultimo numero usado, senao a prefeitura recusa por duplicidade.
+- Nada de CNPJ, inscricao municipal, dominio de deploy ou razao social reais em codigo, teste ou doc. Os testes usam CNPJ ficticio (`11222333000181`), CCM `12345678` e "EMPRESA EXEMPLO LTDA".
 
 ## Docs
 
