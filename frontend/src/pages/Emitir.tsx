@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { api, ApiError, type Config } from "@/lib/api"
+import { api, ApiError, type Config, type Nota } from "@/lib/api"
 import {
   documentoValido,
   ehCnpj as docEhCnpj,
@@ -29,6 +29,7 @@ export default function Emitir() {
   const navigate = useNavigate()
   const [cfg, setCfg] = useState<Config | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [emitida, setEmitida] = useState<Nota | null>(null)
 
   const [doc, setDoc] = useState("")
   const [nome, setNome] = useState("")
@@ -118,9 +119,9 @@ export default function Emitir() {
       const r = await api.emitirNota(payload)
       if (r.teste) {
         toast.success("Modo teste: pedido validado pela prefeitura, nenhuma nota emitida")
-      } else {
-        toast.success(`NFS-e ${r.nota?.numero_nfse} emitida`)
-        navigate("/notas")
+      } else if (r.nota) {
+        toast.success(`NFS-e ${r.nota.numero_nfse} emitida`)
+        setEmitida(r.nota)
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -143,6 +144,73 @@ export default function Emitir() {
     } finally {
       setEnviando(false)
     }
+  }
+
+  function novaEmissao() {
+    setEmitida(null)
+    setDoc("")
+    setNome("")
+    setEmail("")
+    setValor("")
+    setCep("")
+    setLogradouro("")
+    setNumero("")
+    setComplemento("")
+    setBairro("")
+    setCodigoMunicipio("")
+    setUf("")
+  }
+
+  if (emitida) {
+    return (
+      <div className="max-w-3xl space-y-4">
+        <h1 className="text-2xl font-bold">Nota emitida</h1>
+
+        <Alert className="border-green-300 bg-green-50 text-green-900">
+          <AlertTitle>NFS-e {emitida.numero_nfse} autorizada</AlertTitle>
+          <AlertDescription>
+            {emitida.tomador_nome} - {emitida.valor.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
+            {emitida.codigo_verificacao
+              ? ` - codigo de verificacao ${emitida.codigo_verificacao}`
+              : ""}
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <a href={api.urlPdf(emitida.id, true)} download>
+              Baixar PDF
+            </a>
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={api.urlPdf(emitida.id)} target="_blank" rel="noreferrer">
+              Abrir em nova aba
+            </a>
+          </Button>
+          <Button variant="outline" onClick={novaEmissao}>
+            Emitir outra
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/notas")}>
+            Ver todas as notas
+          </Button>
+        </div>
+
+        <Card className="overflow-hidden p-0">
+          <iframe
+            src={api.urlPdf(emitida.id)}
+            title={`NFS-e ${emitida.numero_nfse}`}
+            className="h-[800px] w-full border-0"
+          />
+        </Card>
+        <p className="text-xs text-muted-foreground">
+          PDF oficial gerado pela Prefeitura de Sao Paulo a partir do numero da nota e
+          do codigo de verificacao.
+        </p>
+      </div>
+    )
   }
 
   return (

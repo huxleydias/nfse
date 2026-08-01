@@ -174,7 +174,30 @@ export default function Notas() {
                     {badge.label}
                   </Badge>
                 </TableCell>
-                <TableCell className="space-x-2 text-right">
+                <TableCell className="space-x-1 text-right">
+                  {n.numero_nfse && n.codigo_verificacao && (
+                    <>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a
+                          href={api.urlPdf(n.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Abrir o PDF oficial da prefeitura"
+                        >
+                          PDF
+                        </a>
+                      </Button>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a
+                          href={api.urlPdf(n.id, true)}
+                          download
+                          title={`Baixar nfse-${n.numero_nfse}.pdf`}
+                        >
+                          Baixar
+                        </a>
+                      </Button>
+                    </>
+                  )}
                   <Button variant="ghost" size="sm" onClick={() => abrirDetalhe(n)}>
                     Detalhe
                   </Button>
@@ -232,6 +255,27 @@ export default function Notas() {
                 : ""}
             </DialogDescription>
           </DialogHeader>
+          {detalhe?.numero_nfse && detalhe?.codigo_verificacao && (
+            <>
+              <div className="flex gap-2">
+                <Button size="sm" asChild>
+                  <a href={api.urlPdf(detalhe.id, true)} download>
+                    Baixar PDF
+                  </a>
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href={api.urlPdf(detalhe.id)} target="_blank" rel="noreferrer">
+                    Abrir em nova aba
+                  </a>
+                </Button>
+              </div>
+              <iframe
+                src={api.urlPdf(detalhe.id)}
+                title={`NFS-e ${detalhe.numero_nfse}`}
+                className="h-[600px] w-full rounded border"
+              />
+            </>
+          )}
           {detalhe?.erros_json && (
             <pre className="overflow-x-auto rounded bg-red-50 p-3 text-xs text-red-800">
               {JSON.stringify(JSON.parse(detalhe.erros_json), null, 2)}

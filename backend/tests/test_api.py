@@ -161,6 +161,56 @@ class TestEmissaoAPI:
         assert r.json()["nota"]["status"] == "cancelada"
 
 
+class TestPdfAPI:
+    def test_pdf_de_nota_autorizada(self, api_configurada, monkeypatch):
+        import requests as req
+
+        class R:
+            ok, status_code, content = True, 200, b"%PDF-1.7 fake"
+
+        monkeypatch.setattr(req, "get", lambda *a, **kw: R())
+        api_configurada.post("/api/notas", json=PAYLOAD)
+        nota_id = api_configurada.get("/api/notas").json()["notas"][0]["id"]
+
+        r = api_configurada.get(f"/api/notas/{nota_id}/pdf")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/pdf"
+        assert r.content.startswith(b"%PDF")
+        assert "inline" in r.headers["content-disposition"]
+
+    def test_download_usa_attachment(self, api_configurada, monkeypatch):
+        import requests as req
+
+        class R:
+            ok, status_code, content = True, 200, b"%PDF-1.7 fake"
+
+        monkeypatch.setattr(req, "get", lambda *a, **kw: R())
+        api_configurada.post("/api/notas", json=PAYLOAD)
+        nota_id = api_configurada.get("/api/notas").json()["notas"][0]["id"]
+
+        r = api_configurada.get(f"/api/notas/{nota_id}/pdf?download=true")
+        assert "attachment" in r.headers["content-disposition"]
+        assert "nfse-1234.pdf" in r.headers["content-disposition"]
+
+    def test_nota_inexistente(self, api_configurada):
+        assert api_configurada.get("/api/notas/9999/pdf").status_code == 404
+
+    def test_nota_sem_numero_nfse(self, api_configurada):
+        from app.core.db import get_session
+        from app.models.nota import Nota
+        s = get_session()
+        nota = Nota(valor=1.0, status="erro")
+        s.add(nota)
+        s.commit()
+        nota_id = nota.id
+        s.close()
+        r = api_configurada.get(f"/api/notas/{nota_id}/pdf")
+        assert r.status_code == 409
+
+    def test_pdf_exige_auth(self, api):
+        assert api.get("/api/notas/1/pdf").status_code == 401
+
+
 class TestCertificadoAPI:
     def test_upload_e_status(self, api_logada, pfx_bytes):
         r = api_logada.post(

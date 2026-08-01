@@ -1,8 +1,8 @@
 import json
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ValidationError
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel
 
 from app.api.deps import db_session
 from app.core.security import bearer_ou_sessao, sessao_requerida
@@ -18,6 +18,7 @@ from app.nfse.emitter import (
     sincronizar,
 )
 from app.nfse.parser import RespostaInvalidaError
+from app.nfse.pdf import PdfIndisponivelError, baixar_pdf
 from app.nfse.signer import CertificadoError
 from app.nfse.soap_client import PrefeituraIndisponivelError, SoapClient
 from app.nfse.xsd_validator import XSDValidationError
@@ -84,6 +85,39 @@ def detalhe_nota(nota_id: int, session=Depends(db_session)):
     if nota is None:
         raise HTTPException(status_code=404, detail="Nota nao encontrada")
     return {"nota": nota.to_dict(com_xml=True)}
+
+
+@router.get("/{nota_id}/pdf", dependencies=[Depends(bearer_ou_sessao)])
+def pdf_nota(nota_id: int, download: bool = False, session=Depends(db_session)):
+    """PDF oficial da NFS-e, buscado no portal da prefeitura."""
+    nota = session.get(Nota, nota_id)
+    if nota is None:
+        raise HTTPException(status_code=404, detail="Nota nao encontrada")
+    if not nota.numero_nfse or not nota.codigo_verificacao:
+        raise HTTPException(
+            status_code=409,
+            detail="Nota sem numero de NFS-e ou codigo de verificacao: "
+            "so notas autorizadas tem PDF",
+        )
+
+    from app.models.config_store import get_config
+
+    inscricao = get_config(session)["prestador"]["inscricao_municipal"]
+    try:
+        conteudo = baixar_pdf(inscricao, nota.numero_nfse, nota.codigo_verificacao)
+    except PdfIndisponivelError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    disposicao = "attachment" if download else "inline"
+    nome = f"nfse-{nota.numero_nfse}.pdf"
+    return Response(
+        content=conteudo,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposicao}; filename="{nome}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
 
 
 @router.delete("/{nota_id}", dependencies=[Depends(bearer_ou_sessao)])

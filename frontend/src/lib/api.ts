@@ -105,6 +105,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  /** PDF oficial da prefeitura. inline para visualizar, download para baixar. */
+  urlPdf: (id: number, download = false) =>
+    `/api/notas/${id}/pdf${download ? "?download=true" : ""}`,
   cancelarNota: (id: number) =>
     request<{ nota: Nota }>(`/api/notas/${id}`, { method: "DELETE" }),
   sincronizar: (inicio: string, fim: string) =>
