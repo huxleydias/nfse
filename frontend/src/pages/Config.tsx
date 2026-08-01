@@ -120,6 +120,36 @@ export default function Config() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Layout do XML</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={cfg.layout === 2}
+              onCheckedChange={(v) => setCfg({ ...cfg, layout: v ? 2 : 1 })}
+            />
+            <div>
+              <p className="font-medium">
+                Layout {cfg.layout === 2 ? "2 (reforma IBS/CBS)" : "1 (pre reforma)"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Optante do Simples Nacional precisa usar o layout 1 ate a reforma valer
+                para o regime (janeiro/2027). Com layout 2 a prefeitura recusa com o erro
+                641.
+              </p>
+            </div>
+          </div>
+          {cfg.layout === 1 && (
+            <p className="text-xs text-muted-foreground">
+              No layout 1 os campos NBS, cClassTrib e cIndOp abaixo ficam guardados mas
+              nao vao no XML.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Prestador</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">

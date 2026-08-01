@@ -13,7 +13,11 @@ from .parser import (
     parse_retorno_consulta,
     parse_retorno_envio,
 )
-from .sign_string import build_cancelamento_sign_string, build_sign_string_v2
+from .sign_string import (
+    build_cancelamento_sign_string,
+    build_sign_string_v1,
+    build_sign_string_v2,
+)
 from .signer import sign_rps_hash, sign_xml_enveloped
 from .soap_client import SoapClient
 from .utils import so_digitos, validar_cnpj, validar_cpf
@@ -21,10 +25,27 @@ from .xml_builder import (
     build_pedido_cancelamento,
     build_pedido_consulta_periodo,
     build_pedido_envio_lote_rps,
+    build_pedido_envio_lote_rps_v1,
     build_pedido_envio_rps,
+    build_pedido_envio_rps_v1,
     xml_to_string,
 )
 from .xsd_validator import validar
+
+
+LAYOUTS_VALIDOS = (1, 2)
+
+
+def layout_config(cfg: dict) -> int:
+    """Layout do XML: 1 (pre reforma) ou 2 (reforma IBS/CBS).
+
+    Optante do Simples Nacional so pode usar o layout 1 ate a reforma valer
+    para o regime (janeiro/2027). Mandar layout 2 devolve o erro 641 da
+    prefeitura: "Contribuinte cadastrado como Simples Nacional na data
+    informada. Devera ser utilizado o leiaute 1."
+    """
+    layout = int(cfg.get("layout", 1))
+    return layout if layout in LAYOUTS_VALIDOS else 1
 
 
 class EmissaoInvalidaError(Exception):
@@ -162,7 +183,12 @@ def emitir(payload: EmissaoPayload, session, client: SoapClient,
     dados = _montar_dados_rps(cfg, payload, numero_rps)
     prestador = cfg["prestador"]
 
-    sign_str = build_sign_string_v2(
+    layout = layout_config(cfg)
+    tomador_assinatura = {
+        "cpf" if len(dados["tomador"]["cpf_cnpj"]) == 11 else "cnpj":
+            dados["tomador"]["cpf_cnpj"]
+    }
+    comum = dict(
         inscricao=prestador["inscricao_municipal"],
         serie=dados["serie"],
         numero=numero_rps,
@@ -170,29 +196,37 @@ def emitir(payload: EmissaoPayload, session, client: SoapClient,
         tributacao=dados["tributacao"],
         status=dados["status"],
         iss_retido=dados["iss_retido"],
-        valor_cobrado=dados["valor"],
         deducoes=dados["deducoes"],
         cod_servico=dados["codigo_servico"],
-        tomador={
-            "cpf" if len(dados["tomador"]["cpf_cnpj"]) == 11 else "cnpj":
-                dados["tomador"]["cpf_cnpj"]
-        },
+        tomador=tomador_assinatura,
     )
+    if layout == 1:
+        sign_str = build_sign_string_v1(valor_servicos=dados["valor"], **comum)
+    else:
+        sign_str = build_sign_string_v2(valor_cobrado=dados["valor"], **comum)
     assinatura_rps = sign_rps_hash(private_key, sign_str)
 
-    if modo_teste:
-        root = build_pedido_envio_lote_rps(prestador, dados, assinatura_rps)
-        schema = "PedidoEnvioLoteRPS_v02.xsd"
+    if layout == 1:
+        if modo_teste:
+            root = build_pedido_envio_lote_rps_v1(prestador, dados, assinatura_rps)
+            schema = "PedidoEnvioLoteRPS_v01.xsd"
+        else:
+            root = build_pedido_envio_rps_v1(prestador, dados, assinatura_rps)
+            schema = "PedidoEnvioRPS_v01.xsd"
     else:
-        root = build_pedido_envio_rps(prestador, dados, assinatura_rps)
-        schema = "PedidoEnvioRPS_v02.xsd"
+        if modo_teste:
+            root = build_pedido_envio_lote_rps(prestador, dados, assinatura_rps)
+            schema = "PedidoEnvioLoteRPS_v02.xsd"
+        else:
+            root = build_pedido_envio_rps(prestador, dados, assinatura_rps)
+            schema = "PedidoEnvioRPS_v02.xsd"
 
     sign_xml_enveloped(root, cert, private_key)
     validar(root, schema)
     xml_enviado = xml_to_string(root)
 
     if modo_teste:
-        resposta = client.teste_envio_lote_rps(xml_enviado)
+        resposta = client.teste_envio_lote_rps(xml_enviado, versao=layout)
         retorno = parse_retorno_envio(extrair_retorno_soap(resposta))
         return {"teste": True, "resultado": retorno, "xml_enviado": xml_enviado}
 
@@ -211,7 +245,7 @@ def emitir(payload: EmissaoPayload, session, client: SoapClient,
     session.commit()
 
     try:
-        resposta = client.envio_rps(xml_enviado)
+        resposta = client.envio_rps(xml_enviado, versao=layout)
     except Exception:
         nota.status = "erro"
         nota.erros_json = json.dumps(
@@ -244,12 +278,13 @@ def cancelar(nota: Nota, session, client: SoapClient, cert, private_key) -> Nota
     sign_str = build_cancelamento_sign_string(
         prestador["inscricao_municipal"], nota.numero_nfse
     )
+    layout = layout_config(cfg)
     assinatura = sign_rps_hash(private_key, sign_str)
-    root = build_pedido_cancelamento(prestador, nota.numero_nfse, assinatura)
+    root = build_pedido_cancelamento(prestador, nota.numero_nfse, assinatura, versao=layout)
     sign_xml_enveloped(root, cert, private_key)
-    validar(root, "PedidoCancelamentoNFe_v02.xsd")
+    validar(root, f"PedidoCancelamentoNFe_v0{layout}.xsd")
 
-    resposta = client.cancelamento_nfe(xml_to_string(root))
+    resposta = client.cancelamento_nfe(xml_to_string(root), versao=layout)
     retorno = parse_retorno_cancelamento(extrair_retorno_soap(resposta))
     if not retorno["sucesso"]:
         raise PrefeituraRecusouError(retorno["erros"], nota)
@@ -265,11 +300,12 @@ def sincronizar(dt_inicio: date, dt_fim: date, session, client: SoapClient,
     """ConsultaNFeEmitidas no periodo e upsert das notas no banco local."""
     cfg = get_config(session)
     prestador = cfg["prestador"]
-    root = build_pedido_consulta_periodo(prestador, dt_inicio, dt_fim)
+    layout = layout_config(cfg)
+    root = build_pedido_consulta_periodo(prestador, dt_inicio, dt_fim, versao=layout)
     sign_xml_enveloped(root, cert, private_key)
-    validar(root, "PedidoConsultaNFePeriodo_v02.xsd")
+    validar(root, f"PedidoConsultaNFePeriodo_v0{layout}.xsd")
 
-    resposta = client.consulta_nfe_periodo(xml_to_string(root))
+    resposta = client.consulta_nfe_periodo(xml_to_string(root), versao=layout)
     notas_remotas = parse_retorno_consulta(extrair_retorno_soap(resposta))
 
     novas, atualizadas = 0, 0

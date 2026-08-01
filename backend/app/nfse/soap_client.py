@@ -40,7 +40,6 @@ SOAP_ACTIONS = {
     "ConsultaCNPJ": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaCNPJ",
 }
 
-VERSAO_SCHEMA = 2
 TIMEOUT_SEG = 60
 
 
@@ -48,15 +47,18 @@ class PrefeituraIndisponivelError(Exception):
     pass
 
 
-def montar_envelope(metodo: str, xml_pedido: str) -> str:
+def montar_envelope(metodo: str, xml_pedido: str, versao: int = 2) -> str:
     """Envelope SOAP 1.1 conforme o WSDL: elemento <MetodoRequest> no
-    namespace da prefeitura, com VersaoSchema e MensagemXML em CDATA."""
+    namespace da prefeitura, com VersaoSchema e MensagemXML em CDATA.
+
+    VersaoSchema tem que casar com o layout do XML de dentro do CDATA.
+    """
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<soap:Envelope xmlns:soap="{SOAP_NS}">\n'
         "  <soap:Body>\n"
         f'    <{metodo}Request xmlns="{NFE_NS}">\n'
-        f"      <VersaoSchema>{VERSAO_SCHEMA}</VersaoSchema>\n"
+        f"      <VersaoSchema>{versao}</VersaoSchema>\n"
         f"      <MensagemXML><![CDATA[{xml_pedido}]]></MensagemXML>\n"
         f"    </{metodo}Request>\n"
         "  </soap:Body>\n"
@@ -70,13 +72,13 @@ class SoapClient:
         self._key = private_key
         self._url = url
 
-    def _post(self, metodo: str, xml_pedido: str) -> str:
+    def _post(self, metodo: str, xml_pedido: str, versao: int = 2) -> str:
         try:
             soap_action = SOAP_ACTIONS[metodo]
         except KeyError:
             raise ValueError(f"Metodo SOAP desconhecido: {metodo}")
 
-        envelope = montar_envelope(metodo, xml_pedido)
+        envelope = montar_envelope(metodo, xml_pedido, versao)
         cert_path, key_path = cert_key_to_temp_pem(self._cert, self._key)
         try:
             resposta = requests.post(
@@ -104,18 +106,18 @@ class SoapClient:
             )
         return resposta.text
 
-    def envio_rps(self, xml_pedido: str) -> str:
-        return self._post("EnvioRPS", xml_pedido)
+    def envio_rps(self, xml_pedido: str, versao: int = 2) -> str:
+        return self._post("EnvioRPS", xml_pedido, versao)
 
-    def teste_envio_lote_rps(self, xml_pedido: str) -> str:
+    def teste_envio_lote_rps(self, xml_pedido: str, versao: int = 2) -> str:
         """Valida o lote na prefeitura sem emitir nota (modo teste)."""
-        return self._post("TesteEnvioLoteRPS", xml_pedido)
+        return self._post("TesteEnvioLoteRPS", xml_pedido, versao)
 
-    def consulta_nfe(self, xml_pedido: str) -> str:
-        return self._post("ConsultaNFe", xml_pedido)
+    def consulta_nfe(self, xml_pedido: str, versao: int = 2) -> str:
+        return self._post("ConsultaNFe", xml_pedido, versao)
 
-    def consulta_nfe_periodo(self, xml_pedido: str) -> str:
-        return self._post("ConsultaNFeEmitidas", xml_pedido)
+    def consulta_nfe_periodo(self, xml_pedido: str, versao: int = 2) -> str:
+        return self._post("ConsultaNFeEmitidas", xml_pedido, versao)
 
-    def cancelamento_nfe(self, xml_pedido: str) -> str:
-        return self._post("CancelamentoNFe", xml_pedido)
+    def cancelamento_nfe(self, xml_pedido: str, versao: int = 2) -> str:
+        return self._post("CancelamentoNFe", xml_pedido, versao)

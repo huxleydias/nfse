@@ -26,6 +26,9 @@ CONFIG_DEFAULT = {
     "proximo_numero_rps": 8,
     "modo_teste": True,
     "tributacao": "T",
+    # 1 = layout pre reforma (obrigatorio para optantes do Simples Nacional
+    # ate a reforma valer para o regime). 2 = layout da reforma IBS/CBS.
+    "layout": 1,
 }
 
 # Exemplo de servico em config["servicos"]:

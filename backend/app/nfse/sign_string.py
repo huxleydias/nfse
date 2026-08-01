@@ -10,6 +10,55 @@ from datetime import date
 from .utils import so_digitos, valor_centavos
 
 
+def build_sign_string_v1(
+    inscricao: str,
+    serie: str,
+    numero: int,
+    data_emissao: date,
+    tributacao: str,
+    status: str,
+    iss_retido: bool,
+    valor_servicos: float,
+    deducoes: float,
+    cod_servico: str,
+    tomador: dict,
+    intermediario: dict | None = None,
+) -> str:
+    """String de assinatura do RPS, layout versao 1 (quadro "Campos para
+    assinatura do RPS - versao 1.0" do manual).
+
+    Diferencas para a v2: inscricao com 8 posicoes (v2 usa 12), o campo 8 e o
+    ValorServicos (v2 usa o valor cobrado) e nao existe campo de NIF.
+    """
+    partes = [
+        so_digitos(inscricao).zfill(8),
+        serie[:5].ljust(5),
+        str(numero).zfill(12),
+        data_emissao.strftime("%Y%m%d"),
+        tributacao[0].upper(),
+        status[0].upper(),
+        "S" if iss_retido else "N",
+        valor_centavos(valor_servicos),
+        valor_centavos(deducoes),
+        so_digitos(cod_servico).zfill(5),
+    ]
+
+    ind_tomador, doc_tomador = _indicador_doc(tomador)
+    # v1 nao conhece o indicador 4 (NIF)
+    if ind_tomador == "4":
+        ind_tomador, doc_tomador = "3", "0" * 14
+    partes.append(ind_tomador)
+    partes.append(doc_tomador)
+
+    if intermediario:
+        ind_int, doc_int = _indicador_doc(intermediario)
+        partes.append(ind_int)
+        partes.append(doc_int)
+        partes.append("S" if intermediario.get("iss_retido") else "N")
+
+    return "".join(partes)
+
+
 def build_cancelamento_sign_string(inscricao: str, numero_nfse: str) -> str:
     """String de assinatura de cancelamento: 20 posicoes.
 

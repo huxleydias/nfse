@@ -56,21 +56,26 @@ class ClientFake:
         self.resposta_cancel = resposta_cancel
         self.resposta_consulta = resposta_consulta
         self.chamadas = []
+        self.versoes = []
 
-    def envio_rps(self, xml):
+    def envio_rps(self, xml, versao=2):
         self.chamadas.append(("envio_rps", xml))
+        self.versoes.append(versao)
         return self.resposta_envio
 
-    def teste_envio_lote_rps(self, xml):
+    def teste_envio_lote_rps(self, xml, versao=2):
         self.chamadas.append(("teste_envio_lote_rps", xml))
+        self.versoes.append(versao)
         return self.resposta_envio
 
-    def cancelamento_nfe(self, xml):
+    def cancelamento_nfe(self, xml, versao=2):
         self.chamadas.append(("cancelamento_nfe", xml))
+        self.versoes.append(versao)
         return self.resposta_cancel
 
-    def consulta_nfe_periodo(self, xml):
+    def consulta_nfe_periodo(self, xml, versao=2):
         self.chamadas.append(("consulta_nfe_periodo", xml))
+        self.versoes.append(versao)
         return self.resposta_consulta
 
 
@@ -168,6 +173,57 @@ class TestEmitir:
         from pydantic import ValidationError
         with pytest.raises(ValidationError):
             payload_ok(tomador={"cpf_cnpj": "111.444.777-99"})
+
+
+class TestLayout:
+    def test_default_e_layout_1(self, session, cfg_pronta, cert_e_chave):
+        from app.nfse.emitter import emitir
+        cert, key = cert_e_chave
+        client = ClientFake(resposta_envio=resposta_sucesso())
+        emitir(payload_ok(), session, client, cert, key)
+        xml = client.chamadas[0][1]
+        # Layout 1: sem campos da reforma, com ValorServicos e Versao="1"
+        assert 'Versao="1"' in xml
+        assert "<ValorServicos>" in xml
+        assert "IBSCBS" not in xml
+        assert "<NBS>" not in xml
+        assert "cLocPrestacao" not in xml
+
+    def test_layout_2_quando_configurado(self, session, cfg_pronta, cert_e_chave):
+        from app.models.config_store import get_config, save_config
+        from app.nfse.emitter import emitir
+        cfg = get_config(session)
+        cfg["layout"] = 2
+        save_config(session, cfg)
+        cert, key = cert_e_chave
+        client = ClientFake(resposta_envio=resposta_sucesso())
+        emitir(payload_ok(), session, client, cert, key)
+        xml = client.chamadas[0][1]
+        assert 'Versao="2"' in xml
+        assert "<IBSCBS>" in xml
+        assert "<ValorFinalCobrado>" in xml
+        assert "<ValorServicos>" not in xml
+
+    def test_versao_schema_acompanha_o_layout(self, session, cfg_pronta, cert_e_chave):
+        from app.nfse.emitter import emitir
+        cert, key = cert_e_chave
+        client = ClientFake(resposta_envio=resposta_sucesso())
+        emitir(payload_ok(), session, client, cert, key)
+        assert client.versoes[0] == 1
+
+    def test_assinatura_v1_usa_inscricao_com_8_posicoes(self):
+        from datetime import date
+        from app.nfse.sign_string import build_sign_string_v1, build_sign_string_v2
+        comum = dict(
+            inscricao="66467799", serie="PM", numero=8, data_emissao=date(2026, 8, 1),
+            tributacao="T", status="N", iss_retido=False, deducoes=0.0,
+            cod_servico="05762", tomador={"cpf": "11144477735"},
+        )
+        v1 = build_sign_string_v1(valor_servicos=599.0, **comum)
+        v2 = build_sign_string_v2(valor_cobrado=599.0, **comum)
+        assert v1.startswith("66467799PM   ")
+        assert v2.startswith("000066467799PM   ")
+        assert len(v1) < len(v2)
 
 
 class TestCancelar:

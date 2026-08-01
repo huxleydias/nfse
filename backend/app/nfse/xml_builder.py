@@ -162,12 +162,109 @@ def _build_rps(root, prestador: dict, rps: dict, assinatura_b64: str):
     return rps_el
 
 
+def _build_rps_v1(root, prestador: dict, rps: dict, assinatura_b64: str):
+    """tpRPS do layout versao 1: sem os campos da reforma (IBS/CBS, NBS,
+    cLocPrestacao) e com ValorServicos no lugar do valor cobrado."""
+    rps_el = _el(root, "RPS")
+    _el(rps_el, "Assinatura", assinatura_b64)
+
+    chave = _el(rps_el, "ChaveRPS")
+    _el(chave, "InscricaoPrestador", so_digitos(prestador["inscricao_municipal"]))
+    _el(chave, "SerieRPS", rps["serie"])
+    _el(chave, "NumeroRPS", rps["numero"])
+
+    _el(rps_el, "TipoRPS", "RPS")
+    data: date = rps["data_emissao"]
+    _el(rps_el, "DataEmissao", data.isoformat())
+    _el(rps_el, "StatusRPS", rps.get("status", "N"))
+    _el(rps_el, "TributacaoRPS", rps.get("tributacao", "T"))
+    _el(rps_el, "ValorServicos", _dec(rps["valor"]))
+    _el(rps_el, "ValorDeducoes", _dec(rps.get("deducoes", 0.0)))
+
+    ret = rps.get("valores_retencao", {})
+    for tag, chave_ret in (
+        ("ValorPIS", "pis"), ("ValorCOFINS", "cofins"), ("ValorINSS", "inss"),
+        ("ValorIR", "ir"), ("ValorCSLL", "csll"),
+    ):
+        if ret.get(chave_ret):
+            _el(rps_el, tag, _dec(ret[chave_ret]))
+
+    _el(rps_el, "CodigoServico", so_digitos(rps["codigo_servico"]))
+    _el(rps_el, "AliquotaServicos", _aliquota(rps["aliquota"]))
+    _el(rps_el, "ISSRetido", "true" if rps.get("iss_retido") else "false")
+
+    tomador = rps["tomador"]
+    doc = so_digitos(tomador.get("cpf_cnpj", ""))
+    if doc:
+        cpfcnpj = _el(rps_el, "CPFCNPJTomador")
+        _el(cpfcnpj, "CNPJ" if len(doc) == 14 else "CPF", doc)
+    if tomador.get("razao_social"):
+        _el(rps_el, "RazaoSocialTomador", tomador["razao_social"][:75])
+
+    endereco = tomador.get("endereco") or {}
+    if endereco.get("logradouro"):
+        end_el = _el(rps_el, "EnderecoTomador")
+        if endereco.get("tipo_logradouro"):
+            _el(end_el, "TipoLogradouro", endereco["tipo_logradouro"][:3])
+        _el(end_el, "Logradouro", endereco["logradouro"][:50])
+        if endereco.get("numero"):
+            _el(end_el, "NumeroEndereco", endereco["numero"][:10])
+        if endereco.get("complemento"):
+            _el(end_el, "ComplementoEndereco", endereco["complemento"][:30])
+        if endereco.get("bairro"):
+            _el(end_el, "Bairro", endereco["bairro"][:30])
+        if endereco.get("codigo_municipio"):
+            _el(end_el, "Cidade", so_digitos(endereco["codigo_municipio"]))
+        if endereco.get("uf"):
+            _el(end_el, "UF", endereco["uf"][:2].upper())
+        if endereco.get("cep"):
+            _el(end_el, "CEP", so_digitos(endereco["cep"]))
+
+    if tomador.get("email"):
+        _el(rps_el, "EmailTomador", tomador["email"][:75])
+
+    _el(rps_el, "Discriminacao", rps["discriminacao"][:2000])
+    return rps_el
+
+
+def build_pedido_envio_rps_v1(prestador: dict, rps: dict, assinatura_b64: str) -> etree._Element:
+    """PedidoEnvioRPS layout 1. Obrigatorio para optantes do Simples Nacional
+    ate a reforma valer para o regime (erro 641 da prefeitura quando um
+    contribuinte do Simples manda layout 2)."""
+    root = etree.Element(f"{{{NFE_NS}}}PedidoEnvioRPS", nsmap={"p1": NFE_NS})
+    cab = _el(root, "Cabecalho")
+    cab.set("Versao", "1")
+    remetente = _el(cab, "CPFCNPJRemetente")
+    _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
+    _build_rps_v1(root, prestador, rps, assinatura_b64)
+    return root
+
+
+def build_pedido_envio_lote_rps_v1(prestador: dict, rps: dict,
+                                   assinatura_b64: str) -> etree._Element:
+    """PedidoEnvioLoteRPS layout 1 com 1 RPS (usado pelo modo teste)."""
+    root = etree.Element(f"{{{NFE_NS}}}PedidoEnvioLoteRPS", nsmap={"p1": NFE_NS})
+    cab = _el(root, "Cabecalho")
+    cab.set("Versao", "1")
+    remetente = _el(cab, "CPFCNPJRemetente")
+    _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
+    data: date = rps["data_emissao"]
+    _el(cab, "dtInicio", data.isoformat())
+    _el(cab, "dtFim", data.isoformat())
+    _el(cab, "QtdRPS", 1)
+    _el(cab, "ValorTotalServicos", _dec(rps["valor"]))
+    _el(cab, "ValorTotalDeducoes", _dec(rps.get("deducoes", 0.0)))
+    _build_rps_v1(root, prestador, rps, assinatura_b64)
+    return root
+
+
 def build_pedido_cancelamento(prestador: dict, numero_nfse: str,
-                              assinatura_cancelamento_b64: str) -> etree._Element:
-    """Monta PedidoCancelamentoNFe v2 para uma NFS-e."""
+                              assinatura_cancelamento_b64: str,
+                              versao: int = 2) -> etree._Element:
+    """Monta PedidoCancelamentoNFe para uma NFS-e."""
     root = etree.Element(f"{{{NFE_NS}}}PedidoCancelamentoNFe", nsmap={"p1": NFE_NS})
     cab = _el(root, "Cabecalho")
-    cab.set("Versao", "2")
+    cab.set("Versao", str(versao))
     remetente = _el(cab, "CPFCNPJRemetente")
     _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
     _el(cab, "transacao", "true")
@@ -181,11 +278,11 @@ def build_pedido_cancelamento(prestador: dict, numero_nfse: str,
 
 
 def build_pedido_consulta_periodo(prestador: dict, dt_inicio: date, dt_fim: date,
-                                  pagina: int = 1) -> etree._Element:
-    """Monta PedidoConsultaNFePeriodo v2 (notas emitidas no periodo)."""
+                                  pagina: int = 1, versao: int = 2) -> etree._Element:
+    """Monta PedidoConsultaNFePeriodo (notas emitidas no periodo)."""
     root = etree.Element(f"{{{NFE_NS}}}PedidoConsultaNFePeriodo", nsmap={"p1": NFE_NS})
     cab = _el(root, "Cabecalho")
-    cab.set("Versao", "2")
+    cab.set("Versao", str(versao))
     remetente = _el(cab, "CPFCNPJRemetente")
     _el(remetente, "CNPJ", so_digitos(prestador["cnpj"]))
     contribuinte = _el(cab, "CPFCNPJ")

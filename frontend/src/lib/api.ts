@@ -72,6 +72,7 @@ export interface Config {
   proximo_numero_rps: number
   modo_teste: boolean
   tributacao: string
+  layout: number
 }
 
 export interface CertificadoMeta {
