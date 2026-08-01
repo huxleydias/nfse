@@ -109,7 +109,9 @@ export default function Notas() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    // Tabela de dados: ocupa a largura toda do container, ao contrario das
+    // demais paginas, que sao formularios e ficam em max-w-3xl.
+    <div className="relative flex flex-1 flex-col gap-4 overflow-auto px-4 outline-none lg:px-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Notas recentes</h2>
