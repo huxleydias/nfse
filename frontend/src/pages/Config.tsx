@@ -7,6 +7,15 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { api, type Config as ConfigT, type ServicoConfig } from "@/lib/api"
+import {
+  completarCodigo,
+  documentoValido,
+  fracaoParaPercentual,
+  mascaraCodigo,
+  mascaraCpfCnpj,
+  percentualParaFracao,
+  soDigitos,
+} from "@/lib/mascaras"
 
 const SERVICO_VAZIO: ServicoConfig = {
   descricao_padrao: "",
@@ -116,14 +125,31 @@ export default function Config() {
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>CNPJ</Label>
-            <Input value={cfg.prestador.cnpj} onChange={(e) => setPrestador("cnpj", e.target.value)} />
+            <Input
+              value={mascaraCpfCnpj(cfg.prestador.cnpj)}
+              onChange={(e) => setPrestador("cnpj", mascaraCpfCnpj(e.target.value))}
+              placeholder="00.000.000/0000-00"
+              inputMode="numeric"
+              aria-invalid={
+                soDigitos(cfg.prestador.cnpj).length === 14 &&
+                !documentoValido(cfg.prestador.cnpj)
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              So numeros; a pontuacao entra sozinha
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Inscricao municipal (CCM)</Label>
             <Input
               value={cfg.prestador.inscricao_municipal}
-              onChange={(e) => setPrestador("inscricao_municipal", e.target.value)}
+              onChange={(e) =>
+                setPrestador("inscricao_municipal", mascaraCodigo(e.target.value, 12))
+              }
+              placeholder="66467799"
+              inputMode="numeric"
             />
+            <p className="text-xs text-muted-foreground">So digitos, ate 12</p>
           </div>
           <div className="space-y-2">
             <Label>Razao social</Label>
@@ -190,11 +216,24 @@ export default function Config() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Aliquota ISS (fracao, ex.: 0.02)</Label>
-                  <Input
-                    value={s.aliquota}
-                    onChange={(e) => setServico(codigo, "aliquota", parseFloat(e.target.value || "0"))}
-                  />
+                  <Label>Aliquota do ISS</Label>
+                  <div className="relative">
+                    <Input
+                      className="pr-8 text-right tabular-nums"
+                      inputMode="numeric"
+                      value={fracaoParaPercentual(s.aliquota)}
+                      onChange={(e) =>
+                        setServico(codigo, "aliquota", percentualParaFracao(e.target.value))
+                      }
+                      placeholder="0,00"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Em porcentagem: digite 200 para 2,00%. Vai como {s.aliquota} no XML
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 pt-5">
                   <Switch
@@ -204,31 +243,68 @@ export default function Config() {
                   <Label>ISS retido</Label>
                 </div>
                 <div className="space-y-1">
-                  <Label>NBS (9 digitos)</Label>
-                  <Input value={s.nbs} maxLength={9} onChange={(e) => setServico(codigo, "nbs", e.target.value)} />
+                  <Label>NBS</Label>
+                  <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
+                    value={s.nbs}
+                    placeholder="000000000"
+                    onChange={(e) => setServico(codigo, "nbs", mascaraCodigo(e.target.value, 9))}
+                    onBlur={(e) => setServico(codigo, "nbs", completarCodigo(e.target.value, 9))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    9 digitos. Codigo curto ganha zeros a esquerda ao sair do campo
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <Label>cClassTrib (6 digitos)</Label>
+                  <Label>cClassTrib</Label>
                   <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
                     value={s.c_class_trib}
-                    maxLength={6}
-                    onChange={(e) => setServico(codigo, "c_class_trib", e.target.value)}
+                    placeholder="000000"
+                    onChange={(e) =>
+                      setServico(codigo, "c_class_trib", mascaraCodigo(e.target.value, 6))
+                    }
+                    onBlur={(e) =>
+                      setServico(codigo, "c_class_trib", completarCodigo(e.target.value, 6))
+                    }
                   />
+                  <p className="text-xs text-muted-foreground">
+                    6 digitos, classificacao tributaria IBS/CBS (confirmar com o contador)
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <Label>cIndOp (6 digitos, Anexo VII)</Label>
+                  <Label>cIndOp</Label>
                   <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
                     value={s.c_ind_op}
-                    maxLength={6}
-                    onChange={(e) => setServico(codigo, "c_ind_op", e.target.value)}
+                    placeholder="000000"
+                    onChange={(e) =>
+                      setServico(codigo, "c_ind_op", mascaraCodigo(e.target.value, 6))
+                    }
+                    onBlur={(e) =>
+                      setServico(codigo, "c_ind_op", completarCodigo(e.target.value, 6))
+                    }
                   />
+                  <p className="text-xs text-muted-foreground">
+                    6 digitos, indicador de operacao do Anexo VII
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <Label>Cod. municipio da prestacao</Label>
                   <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
                     value={s.c_loc_prestacao ?? "3550308"}
-                    onChange={(e) => setServico(codigo, "c_loc_prestacao", e.target.value)}
+                    onChange={(e) =>
+                      setServico(codigo, "c_loc_prestacao", mascaraCodigo(e.target.value, 7))
+                    }
                   />
+                  <p className="text-xs text-muted-foreground">
+                    IBGE, 7 digitos. Sao Paulo e 3550308
+                  </p>
                 </div>
               </div>
               <Separator />
@@ -239,10 +315,15 @@ export default function Config() {
             <div className="space-y-1">
               <Label>Novo codigo de servico</Label>
               <Input
+                className="tabular-nums"
+                inputMode="numeric"
                 value={novoCodigo}
-                placeholder="ex.: 05762"
-                onChange={(e) => setNovoCodigo(e.target.value)}
+                placeholder="05762"
+                onChange={(e) => setNovoCodigo(mascaraCodigo(e.target.value, 5))}
               />
+              <p className="text-xs text-muted-foreground">
+                Codigo municipal de 4 ou 5 digitos (cursos 05762, consultoria 02881)
+              </p>
             </div>
             <Button variant="outline" onClick={adicionarServico}>
               Adicionar

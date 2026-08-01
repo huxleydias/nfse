@@ -15,6 +15,15 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { api, ApiError, type Config } from "@/lib/api"
+import {
+  documentoValido,
+  ehCnpj as docEhCnpj,
+  mascaraCep,
+  mascaraCpfCnpj,
+  mascaraMoeda,
+  moedaParaNumero,
+  soDigitos,
+} from "@/lib/mascaras"
 
 export default function Emitir() {
   const navigate = useNavigate()
@@ -36,7 +45,10 @@ export default function Emitir() {
   const [codigoMunicipio, setCodigoMunicipio] = useState("")
   const [uf, setUf] = useState("")
 
-  const ehCnpj = doc.replace(/\D/g, "").length > 11
+  const ehCnpj = docEhCnpj(doc)
+  const docCompleto = soDigitos(doc).length === 11 || soDigitos(doc).length === 14
+  const docInvalido = docCompleto && !documentoValido(doc)
+  const valorNumerico = moedaParaNumero(valor)
 
   useEffect(() => {
     api.obterConfig().then((c) => {
@@ -53,7 +65,7 @@ export default function Emitir() {
   }, [cfg, servico, descricao])
 
   async function buscarCep() {
-    const limpo = cep.replace(/\D/g, "")
+    const limpo = soDigitos(cep)
     if (limpo.length !== 8) return
     try {
       const r = await fetch(`https://viacep.com.br/ws/${limpo}/json/`)
@@ -70,29 +82,37 @@ export default function Emitir() {
 
   async function emitir(e: React.FormEvent) {
     e.preventDefault()
+    if (docInvalido) {
+      toast.error("CPF ou CNPJ do tomador invalido")
+      return
+    }
+    if (valorNumerico <= 0) {
+      toast.error("Informe o valor da nota")
+      return
+    }
     setEnviando(true)
     try {
       const payload: Record<string, unknown> = {
         tomador: {
-          cpf_cnpj: doc,
+          cpf_cnpj: soDigitos(doc),
           razao_social: nome,
           email,
           ...(ehCnpj && logradouro
             ? {
                 endereco: {
-                  cep,
+                  cep: soDigitos(cep),
                   logradouro,
                   numero,
                   complemento,
                   bairro,
-                  codigo_municipio: codigoMunicipio,
+                  codigo_municipio: soDigitos(codigoMunicipio),
                   uf,
                 },
               }
             : {}),
         },
         servico,
-        valor: parseFloat(valor.replace(",", ".")),
+        valor: valorNumerico,
         descricao,
       }
       const r = await api.emitirNota(payload)
@@ -104,11 +124,16 @@ export default function Emitir() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        const d = err.detail as { erros_prefeitura?: { codigo: string; descricao: string }[] }
+        const d = err.detail as {
+          erros_prefeitura?: { codigo: string; descricao: string }[]
+          xsd?: string[]
+        }
         if (d && typeof d === "object" && d.erros_prefeitura) {
           toast.error(
             d.erros_prefeitura.map((e2) => `[${e2.codigo}] ${e2.descricao}`).join("; "),
           )
+        } else if (d && typeof d === "object" && d.xsd) {
+          toast.error(`Campo fiscal invalido: ${d.xsd.join("; ")}`, { duration: 12000 })
         } else {
           toast.error(err.message)
         }
@@ -142,7 +167,20 @@ export default function Emitir() {
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="doc">CPF ou CNPJ</Label>
-              <Input id="doc" value={doc} onChange={(e) => setDoc(e.target.value)} required />
+              <Input
+                id="doc"
+                value={doc}
+                onChange={(e) => setDoc(mascaraCpfCnpj(e.target.value))}
+                placeholder="000.000.000-00"
+                inputMode="numeric"
+                aria-invalid={docInvalido}
+                required
+              />
+              <p className={`text-xs ${docInvalido ? "text-red-600" : "text-muted-foreground"}`}>
+                {docInvalido
+                  ? "Digitos conferem o formato mas o documento e invalido"
+                  : "So numeros; a pontuacao entra sozinha"}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="nome">Nome / Razao social</Label>
@@ -157,7 +195,17 @@ export default function Emitir() {
               <>
                 <div className="space-y-2">
                   <Label htmlFor="cep">CEP</Label>
-                  <Input id="cep" value={cep} onChange={(e) => setCep(e.target.value)} onBlur={buscarCep} />
+                  <Input
+                    id="cep"
+                    value={cep}
+                    onChange={(e) => setCep(mascaraCep(e.target.value))}
+                    onBlur={buscarCep}
+                    placeholder="00000-000"
+                    inputMode="numeric"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Preenche o endereco sozinho ao sair do campo
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="logradouro">Logradouro</Label>
@@ -178,11 +226,23 @@ export default function Emitir() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="municipio">Cod. municipio</Label>
-                    <Input id="municipio" value={codigoMunicipio} onChange={(e) => setCodigoMunicipio(e.target.value)} />
+                    <Input
+                      id="municipio"
+                      value={codigoMunicipio}
+                      onChange={(e) => setCodigoMunicipio(soDigitos(e.target.value).slice(0, 7))}
+                      placeholder="3550308"
+                      inputMode="numeric"
+                    />
+                    <p className="text-xs text-muted-foreground">IBGE, 7 digitos</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="uf">UF</Label>
-                    <Input id="uf" value={uf} maxLength={2} onChange={(e) => setUf(e.target.value)} />
+                    <Input
+                      id="uf"
+                      value={uf}
+                      maxLength={2}
+                      onChange={(e) => setUf(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+                    />
                   </div>
                 </div>
               </>
@@ -198,7 +258,7 @@ export default function Emitir() {
             <div className="space-y-2">
               <Label>Codigo de servico</Label>
               <Select value={servico} onValueChange={setServico}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -210,16 +270,35 @@ export default function Emitir() {
                     ))}
                 </SelectContent>
               </Select>
+              {cfg && servico && cfg.servicos[servico] && (
+                <p className="text-xs text-muted-foreground">
+                  ISS {(cfg.servicos[servico].aliquota * 100).toLocaleString("pt-BR", {
+                    minimumFractionDigits: 2,
+                  })}
+                  %
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="valor">Valor (R$)</Label>
-              <Input
-                id="valor"
-                inputMode="decimal"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                required
-              />
+              <Label htmlFor="valor">Valor da nota</Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  R$
+                </span>
+                <Input
+                  id="valor"
+                  className="pl-9 text-right tabular-nums"
+                  inputMode="numeric"
+                  value={valor}
+                  onChange={(e) => setValor(mascaraMoeda(e.target.value))}
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Digite so os numeros: 59900 vira 599,00. Os centavos sao as duas
+                ultimas casas
+              </p>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="descricao">Descricao (discriminacao na nota)</Label>
@@ -228,8 +307,12 @@ export default function Emitir() {
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 rows={3}
+                maxLength={2000}
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                {descricao.length}/2000 caracteres
+              </p>
             </div>
           </CardContent>
         </Card>

@@ -22,12 +22,34 @@ def client(cert_e_chave):
 
 
 class TestMontarEnvelope:
-    def test_estrutura(self):
+    def test_estrutura_conforme_wsdl(self):
         env = montar_envelope("EnvioRPS", "<PedidoEnvioRPS/>")
-        assert "<nfe:EnvioRPS>" in env
-        assert "<nfe:VersaoSchema>2</nfe:VersaoSchema>" in env
+        # Elemento com sufixo Request, no namespace .../nfe (nao .../nfe/ws/lotenfe)
+        assert '<EnvioRPSRequest xmlns="http://www.prefeitura.sp.gov.br/nfe">' in env
+        assert "</EnvioRPSRequest>" in env
+        assert "<VersaoSchema>2</VersaoSchema>" in env
         assert "<![CDATA[<PedidoEnvioRPS/>]]>" in env
-        assert 'xmlns:nfe="http://www.prefeitura.sp.gov.br/nfe/ws/lotenfe"' in env
+        assert "lotenfe" not in env
+
+    def test_consulta_emitidas(self):
+        env = montar_envelope("ConsultaNFeEmitidas", "<x/>")
+        assert "<ConsultaNFeEmitidasRequest" in env
+
+
+class TestSoapActions:
+    def test_valores_do_wsdl(self):
+        from app.nfse.soap_client import SOAP_ACTIONS
+        assert SOAP_ACTIONS["EnvioRPS"] == "http://www.prefeitura.sp.gov.br/nfe/ws/envioRPS"
+        assert SOAP_ACTIONS["ConsultaNFeEmitidas"] == (
+            "http://www.prefeitura.sp.gov.br/nfe/ws/consultaNFeEmitidas"
+        )
+        # TesteEnvioLoteRPS nao segue o nome do metodo
+        assert SOAP_ACTIONS["TesteEnvioLoteRPS"] == (
+            "http://www.prefeitura.sp.gov.br/nfe/ws/testeenvio"
+        )
+        assert SOAP_ACTIONS["CancelamentoNFe"] == (
+            "http://www.prefeitura.sp.gov.br/nfe/ws/cancelamentoNFe"
+        )
 
 
 class TestSoapClient:
@@ -42,29 +64,56 @@ class TestSoapClient:
 
         monkeypatch.setattr(requests, "post", post_fake)
         client.envio_rps("<x/>")
-        assert "<nfe:EnvioRPS>" in capturado["data"]
-        assert capturado["headers"]["SOAPAction"].endswith('/EnvioRPS"')
+        assert "<EnvioRPSRequest" in capturado["data"]
+        assert capturado["headers"]["SOAPAction"] == (
+            '"http://www.prefeitura.sp.gov.br/nfe/ws/envioRPS"'
+        )
         assert capturado["cert"] is not None
 
     def test_modo_teste_usa_teste_envio_lote(self, client, monkeypatch):
         capturado = {}
 
-        def post_fake(url, data=None, **kw):
+        def post_fake(url, data=None, headers=None, **kw):
             capturado["data"] = data.decode()
+            capturado["headers"] = headers
             return RespostaFake()
 
         monkeypatch.setattr(requests, "post", post_fake)
         client.teste_envio_lote_rps("<x/>")
-        assert "<nfe:TesteEnvioLoteRPS>" in capturado["data"]
+        assert "<TesteEnvioLoteRPSRequest" in capturado["data"]
+        assert capturado["headers"]["SOAPAction"] == (
+            '"http://www.prefeitura.sp.gov.br/nfe/ws/testeenvio"'
+        )
+
+    def test_consulta_periodo_usa_consulta_emitidas(self, client, monkeypatch):
+        capturado = {}
+
+        def post_fake(url, data=None, headers=None, **kw):
+            capturado["data"] = data.decode()
+            capturado["headers"] = headers
+            return RespostaFake()
+
+        monkeypatch.setattr(requests, "post", post_fake)
+        client.consulta_nfe_periodo("<x/>")
+        assert "<ConsultaNFeEmitidasRequest" in capturado["data"]
+        assert capturado["headers"]["SOAPAction"] == (
+            '"http://www.prefeitura.sp.gov.br/nfe/ws/consultaNFeEmitidas"'
+        )
 
     def test_cancelamento(self, client, monkeypatch):
         capturado = {}
-        monkeypatch.setattr(
-            requests, "post",
-            lambda url, data=None, **kw: capturado.update(data=data.decode()) or RespostaFake(),
-        )
+
+        def post_fake(url, data=None, headers=None, **kw):
+            capturado["data"] = data.decode()
+            capturado["headers"] = headers
+            return RespostaFake()
+
+        monkeypatch.setattr(requests, "post", post_fake)
         client.cancelamento_nfe("<x/>")
-        assert "<nfe:CancelamentoNFe>" in capturado["data"]
+        assert "<CancelamentoNFeRequest" in capturado["data"]
+        assert capturado["headers"]["SOAPAction"] == (
+            '"http://www.prefeitura.sp.gov.br/nfe/ws/cancelamentoNFe"'
+        )
 
     def test_timeout_vira_prefeitura_indisponivel(self, client, monkeypatch):
         def post_fake(*a, **kw):

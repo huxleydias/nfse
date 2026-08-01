@@ -29,6 +29,13 @@ def _aliquota(valor: float) -> str:
     return texto
 
 
+def _codigo(valor, tamanho: int) -> str:
+    """Codigos fiscais da reforma tem largura fixa e sao preenchidos com
+    zeros a esquerda (NBS 9, cClassTrib 6, cIndOp 6). Quem digita '1' na
+    configuracao quer dizer '000001'; sem isso o XSD rejeita pelo pattern."""
+    return so_digitos(str(valor)).zfill(tamanho)
+
+
 def _el(parent, tag: str, text=None):
     el = etree.SubElement(parent, tag)
     if text is not None:
@@ -136,7 +143,7 @@ def _build_rps(root, prestador: dict, rps: dict, assinatura_b64: str):
     fiscal = rps["fiscal"]
     _el(rps_el, "ValorIPI", _dec(fiscal.get("valor_ipi", 0.0)))
     _el(rps_el, "ExigibilidadeSuspensa", fiscal.get("exigibilidade_suspensa", 0))
-    _el(rps_el, "NBS", fiscal["nbs"])
+    _el(rps_el, "NBS", _codigo(fiscal["nbs"], 9))
 
     # Grupo gpPrestacao (obrigatorio): local da prestacao do servico.
     # cLocPrestacao = codigo IBGE do municipio (3550308 = Sao Paulo).
@@ -145,12 +152,12 @@ def _build_rps(root, prestador: dict, rps: dict, assinatura_b64: str):
     ibscbs = _el(rps_el, "IBSCBS")
     _el(ibscbs, "finNFSe", fiscal.get("fin_nfse", 0))
     _el(ibscbs, "indFinal", fiscal.get("ind_final", 1))
-    _el(ibscbs, "cIndOp", fiscal["c_ind_op"])
+    _el(ibscbs, "cIndOp", _codigo(fiscal["c_ind_op"], 6))
     _el(ibscbs, "indDest", fiscal.get("ind_dest", 0))
     valores = _el(ibscbs, "valores")
     trib = _el(valores, "trib")
     gibscbs = _el(trib, "gIBSCBS")
-    _el(gibscbs, "cClassTrib", fiscal["c_class_trib"])
+    _el(gibscbs, "cClassTrib", _codigo(fiscal["c_class_trib"], 6))
 
     return rps_el
 

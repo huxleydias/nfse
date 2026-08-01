@@ -2,6 +2,19 @@
 
 Endpoint novo (nfews) e o unico que aceita o layout v2 da reforma
 tributaria. TLS mutuo com o certificado A1 do prestador.
+
+Contrato extraido do WSDL do proprio endpoint
+(https://nfews.prefeitura.sp.gov.br/lotenfe.asmx?WSDL, exige o certificado
+para abrir). Tres detalhes que diferem do endpoint antigo e que fazem o
+servidor recusar a chamada se errados:
+
+1. targetNamespace e `http://www.prefeitura.sp.gov.br/nfe`, nao
+   `.../nfe/ws/lotenfe`.
+2. O elemento do corpo tem sufixo Request: `EnvioRPSRequest`, nao `EnvioRPS`.
+3. Cada operacao tem seu proprio SOAPAction, em camelCase e sem seguir o
+   nome do metodo ao pe da letra (TesteEnvioLoteRPS usa `testeenvio`).
+   SOAPAction errado devolve HTTP 500 com soap:Fault
+   "Server did not recognize the value of HTTP Header SOAPAction".
 """
 import os
 
@@ -10,8 +23,22 @@ import requests
 from .signer import cert_key_to_temp_pem
 
 SOAP_NS = "http://schemas.xmlsoap.org/soap/envelope/"
-WS_NS = "http://www.prefeitura.sp.gov.br/nfe/ws/lotenfe"
+NFE_NS = "http://www.prefeitura.sp.gov.br/nfe"
 URL_PADRAO = "https://nfews.prefeitura.sp.gov.br/lotenfe.asmx"
+
+# operacao -> SOAPAction (valores exatos do WSDL)
+SOAP_ACTIONS = {
+    "EnvioRPS": "http://www.prefeitura.sp.gov.br/nfe/ws/envioRPS",
+    "EnvioLoteRPS": "http://www.prefeitura.sp.gov.br/nfe/ws/envioLoteRPS",
+    "TesteEnvioLoteRPS": "http://www.prefeitura.sp.gov.br/nfe/ws/testeenvio",
+    "CancelamentoNFe": "http://www.prefeitura.sp.gov.br/nfe/ws/cancelamentoNFe",
+    "ConsultaNFe": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaNFe",
+    "ConsultaNFeEmitidas": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaNFeEmitidas",
+    "ConsultaNFeRecebidas": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaNFeRecebidas",
+    "ConsultaLote": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaLote",
+    "ConsultaInformacoesLote": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaInformacoesLote",
+    "ConsultaCNPJ": "http://www.prefeitura.sp.gov.br/nfe/ws/consultaCNPJ",
+}
 
 VERSAO_SCHEMA = 2
 TIMEOUT_SEG = 60
@@ -22,14 +49,16 @@ class PrefeituraIndisponivelError(Exception):
 
 
 def montar_envelope(metodo: str, xml_pedido: str) -> str:
+    """Envelope SOAP 1.1 conforme o WSDL: elemento <MetodoRequest> no
+    namespace da prefeitura, com VersaoSchema e MensagemXML em CDATA."""
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<soap:Envelope xmlns:soap="{SOAP_NS}" xmlns:nfe="{WS_NS}">\n'
+        f'<soap:Envelope xmlns:soap="{SOAP_NS}">\n'
         "  <soap:Body>\n"
-        f"    <nfe:{metodo}>\n"
-        f"      <nfe:VersaoSchema>{VERSAO_SCHEMA}</nfe:VersaoSchema>\n"
-        f"      <nfe:MensagemXML><![CDATA[{xml_pedido}]]></nfe:MensagemXML>\n"
-        f"    </nfe:{metodo}>\n"
+        f'    <{metodo}Request xmlns="{NFE_NS}">\n'
+        f"      <VersaoSchema>{VERSAO_SCHEMA}</VersaoSchema>\n"
+        f"      <MensagemXML><![CDATA[{xml_pedido}]]></MensagemXML>\n"
+        f"    </{metodo}Request>\n"
         "  </soap:Body>\n"
         "</soap:Envelope>"
     )
@@ -42,6 +71,11 @@ class SoapClient:
         self._url = url
 
     def _post(self, metodo: str, xml_pedido: str) -> str:
+        try:
+            soap_action = SOAP_ACTIONS[metodo]
+        except KeyError:
+            raise ValueError(f"Metodo SOAP desconhecido: {metodo}")
+
         envelope = montar_envelope(metodo, xml_pedido)
         cert_path, key_path = cert_key_to_temp_pem(self._cert, self._key)
         try:
@@ -50,7 +84,7 @@ class SoapClient:
                 data=envelope.encode("utf-8"),
                 headers={
                     "Content-Type": "text/xml; charset=utf-8",
-                    "SOAPAction": f'"{WS_NS}/{metodo}"',
+                    "SOAPAction": f'"{soap_action}"',
                 },
                 cert=(cert_path, key_path),
                 timeout=TIMEOUT_SEG,

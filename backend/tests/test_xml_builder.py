@@ -114,6 +114,30 @@ class TestBuildPedido:
         assert tags[-1] == "IBSCBS"
 
 
+class TestCodigosFiscaisLarguraFixa:
+    def test_codigos_curtos_recebem_zeros(self):
+        rps = rps_base(fiscal={**FISCAL, "nbs": "1", "c_class_trib": "1", "c_ind_op": "1"})
+        root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
+        assert texto(root, "NBS") == "000000001"
+        assert texto(root, "IBSCBS/cIndOp") == "000001"
+        assert texto(root, "IBSCBS/valores/trib/gIBSCBS/cClassTrib") == "000001"
+
+    def test_codigo_ja_completo_nao_muda(self):
+        rps = rps_base(fiscal={**FISCAL, "c_class_trib": "620001"})
+        root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
+        assert texto(root, "IBSCBS/valores/trib/gIBSCBS/cClassTrib") == "620001"
+
+    def test_codigo_com_pontuacao(self):
+        rps = rps_base(fiscal={**FISCAL, "nbs": "1.2001.10"})
+        root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
+        assert texto(root, "NBS") == "001200110"
+
+    def test_codigo_numerico_int(self):
+        rps = rps_base(fiscal={**FISCAL, "c_ind_op": 1})
+        root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
+        assert texto(root, "IBSCBS/cIndOp") == "000001"
+
+
 class TestBuildLote:
     def test_cabecalho_lote(self):
         root = build_pedido_envio_lote_rps(PRESTADOR, rps_base(), "QUJD")

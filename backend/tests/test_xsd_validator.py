@@ -67,9 +67,25 @@ class TestValidarPedidoEnvioRPS:
         dummy_signature(root)
         validar(root, "PedidoEnvioLoteRPS_v02.xsd")
 
-    def test_cclasstrib_curto_falha(self):
-        rps = rps_base(fiscal={**rps_base()["fiscal"], "c_class_trib": "01"})
+    def test_cclasstrib_curto_e_completado_e_valida(self):
+        # Codigo fiscal curto ganha zeros a esquerda no builder (largura fixa
+        # de 6), entao passa no pattern do XSD em vez de estourar erro.
+        rps = rps_base(fiscal={**rps_base()["fiscal"], "c_class_trib": "1"})
+        root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
+        dummy_signature(root)
+        validar(root, "PedidoEnvioRPS_v02.xsd")
+
+    def test_cclasstrib_longo_demais_falha(self):
+        rps = rps_base(fiscal={**rps_base()["fiscal"], "c_class_trib": "1234567"})
         root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
         dummy_signature(root)
         with pytest.raises(XSDValidationError):
             validar(root, "PedidoEnvioRPS_v02.xsd")
+
+    def test_cclasstrib_vazio_falha(self):
+        rps = rps_base(fiscal={**rps_base()["fiscal"], "c_class_trib": ""})
+        root = build_pedido_envio_rps(PRESTADOR, rps, "QUJD")
+        dummy_signature(root)
+        # String vazia vira 000000, que passa no pattern mas nao e codigo
+        # valido: quem barra e a prefeitura. O importante e nao quebrar aqui.
+        validar(root, "PedidoEnvioRPS_v02.xsd")
