@@ -109,9 +109,14 @@ export default function Notas() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Notas fiscais</h1>
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Notas recentes</h2>
+          <p className="text-sm text-muted-foreground">
+            Consulte, sincronize e acompanhe as notas emitidas.
+          </p>
+        </div>
         <Button onClick={sincronizar} disabled={sincronizando} variant="outline">
           {sincronizando ? "Sincronizando..." : "Sincronizar com a prefeitura"}
         </Button>
@@ -142,8 +147,9 @@ export default function Notas() {
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
+      <div className="overflow-hidden rounded-lg border bg-card">
+        <Table>
+          <TableHeader className="bg-muted/50">
           <TableRow>
             <TableHead>Data</TableHead>
             <TableHead>NFS-e</TableHead>
@@ -152,8 +158,8 @@ export default function Notas() {
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Acoes</TableHead>
           </TableRow>
-        </TableHeader>
-        <TableBody>
+          </TableHeader>
+          <TableBody>
           {notas.length === 0 && (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
@@ -215,8 +221,9 @@ export default function Notas() {
               </TableRow>
             )
           })}
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      </div>
 
       <Dialog open={cancelando !== null} onOpenChange={(v) => !v && setCancelando(null)}>
         <DialogContent>

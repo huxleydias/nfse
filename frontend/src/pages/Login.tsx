@@ -1,10 +1,8 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { FileTextIcon } from "lucide-react"
+import { LoginForm } from "@/components/login-form"
 import { api, ApiError } from "@/lib/api"
 
 export default function Login() {
@@ -13,60 +11,41 @@ export default function Login() {
   const [senha, setSenha] = useState("")
   const [carregando, setCarregando] = useState(false)
 
-  async function entrar(e: React.FormEvent) {
-    e.preventDefault()
+  async function entrar(evento: React.FormEvent<HTMLFormElement>) {
+    evento.preventDefault()
     setCarregando(true)
     try {
       await api.login(usuario, senha)
       navigate("/notas")
-    } catch (err) {
-      const msg =
-        err instanceof ApiError && err.status === 429
+    } catch (erro) {
+      const mensagem =
+        erro instanceof ApiError && erro.status === 429
           ? "Muitas tentativas. Aguarde um minuto."
           : "Usuario ou senha incorretos"
-      toast.error(msg)
+      toast.error(mensagem)
     } finally {
       setCarregando(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-center text-xl">
-            <span className="text-primary">NFS-e</span> Sao Paulo
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={entrar} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="usuario">Usuario</Label>
-              <Input
-                id="usuario"
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                autoComplete="username"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="senha">Senha</Label>
-              <Input
-                id="senha"
-                type="password"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={carregando}>
-              {carregando ? "Entrando..." : "Entrar"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <div className="flex items-center justify-center gap-2 font-semibold">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <FileTextIcon className="size-4" />
+          </span>
+          NFS-e Sao Paulo
+        </div>
+        <LoginForm
+          usuario={usuario}
+          senha={senha}
+          carregando={carregando}
+          onUsuarioChange={setUsuario}
+          onSenhaChange={setSenha}
+          onSubmit={entrar}
+        />
+      </div>
+    </main>
   )
 }
