@@ -263,7 +263,8 @@ Use o numero do pedido como `ref_externa` (ex.: `woo-1234`). **Por que:** se o w
 | Tarefa | CLI | Dashboard |
 |---|---|---|
 | Ver logs | `railway logs` | servico > **Deployments** > clique no deploy > Build/Deploy Logs |
-| Redeploy | `railway up` | **Deployments** > tres pontos > **Redeploy** |
+| Publicar codigo novo | `railway up` | push na branch conectada |
+| Reexecutar o build atual | `railway redeploy` | **Deployments** > tres pontos > **Redeploy** |
 | Rollback | (usar dashboard) | **Deployments** > tres pontos num build anterior > **Redeploy** |
 | Ver variaveis | `railway variable list` | aba **Variables** |
 | Ver volume | `railway volume list` | servico > **Settings** |
@@ -280,6 +281,7 @@ O SQLite vive no volume `/data`, que persiste entre deploys, mas **nao tem backu
 
 | Sintoma | Causa provavel | Fix |
 |---|---|---|
+| Deploy "concluiu" mas a aplicacao continua com o codigo antigo | `railway redeploy` reexecuta o build existente, nao gera um novo; e `railway up` pode perder a corrida para um autodeploy do GitHub disparado logo antes | use `railway up` (nunca `redeploy`) para publicar codigo novo, e confirme olhando o hash do asset servido ou uma rota que so existe na versao nova; se preciso, rode `railway up` de novo |
 | "Deploys have been paused temporarily" no `railway init` ou `railway up` | Fila do plano Hobby em horario de pico, ou instabilidade da plataforma. Nao e erro seu, mas pode abortar o `init` sem criar o projeto | Cheque com `railway list` / `railway status` (ou o dashboard); se o projeto nao existe, repita mais tarde; se existe mas a pasta nao esta vinculada, use `railway link`. Status em https://status.railway.com |
 | "No linked project found" em qualquer comando da CLI | a pasta nao esta vinculada (o vinculo mora em `~/.railway/config.json`, por caminho de diretorio) | `railway link` de dentro da pasta do projeto; ou passe `-p <PROJECT_ID>` no comando |
 | Comando da CLI afetou o projeto errado | rodou de outra pasta, vinculada a outro projeto | `railway status` antes de operar; ou seja explicito com `-p/-s/-e` |

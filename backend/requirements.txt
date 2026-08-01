@@ -1,5 +1,11 @@
-fastapi==0.116.1
+# FastAPI e starlette andam juntos: o mcp 2.x exige starlette 1.x, que so
+# funciona com fastapi >= 0.141. Subir o mcp sem subir o fastapi derruba a
+# aplicacao no boot (Router.__init__ deixou de aceitar on_startup).
+fastapi==0.141.1
+starlette==1.3.1
 uvicorn[standard]==0.35.0
+pydantic==2.13.4
+
 lxml==6.0.0
 cryptography==45.0.5
 requests==2.32.4
@@ -7,7 +13,9 @@ SQLAlchemy==2.0.41
 bcrypt==4.3.0
 itsdangerous==2.2.0
 python-multipart==0.0.20
-pydantic==2.11.7
+
+# Servidor MCP (transporte Streamable HTTP)
 mcp==2.0.0
+
 pytest==8.4.1
 httpx==0.28.1
