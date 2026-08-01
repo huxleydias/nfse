@@ -31,6 +31,18 @@ Diferencas praticas entre os layouts:
 | Cabecalho / VersaoSchema | `1` | `2` |
 | XSDs | `*_v01.xsd` | `*_v02.xsd` |
 
+## PDF da nota
+
+Nao existe PDF no webservice: ele so devolve XML. O documento impresso vem de
+`https://nfe.prefeitura.sp.gov.br/contribuinte/notaprintpdf.aspx?inscricao={ccm}&nf={numero}&verificacao={codigo}`,
+endpoint publico do portal (sem certificado e sem login, protegido pelo codigo de
+verificacao). Descoberto abrindo o `notaprint.aspx`, que carrega esse PDF num iframe.
+
+O backend busca server-side (`app/nfse/pdf.py`) em vez de linkar direto, por dois
+motivos: nao expor a inscricao municipal na URL do navegador e poder nomear o
+arquivo. A prefeitura devolve HTML de erro com status 200 quando a chave nao bate,
+entao a checagem e pelo magic number `%PDF`.
+
 ## Fatos tecnicos que custaram caro descobrir
 
 - Endpoint v2: `https://nfews.prefeitura.sp.gov.br/lotenfe.asmx`. O endpoint antigo (`nfe.prefeitura.sp.gov.br/ws/lotenfe.asmx`) NAO aceita layout 2 e devolve erro 1002.
