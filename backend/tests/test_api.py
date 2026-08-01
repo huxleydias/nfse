@@ -183,6 +183,26 @@ class TestCertificadoAPI:
 
 
 class TestConfigAPI:
+    def test_aliquota_em_percentual_barrada(self, api_configurada):
+        # 2 significaria 200% no XML: erro de digitacao comum, barrado no save
+        r = api_configurada.put("/api/config", json={
+            "servicos": {"05762": {"aliquota": 2, "descricao_padrao": "x"}}
+        })
+        assert r.status_code == 422
+        assert "0.02" in str(r.json()["detail"])
+
+    def test_aliquota_em_fracao_aceita(self, api_configurada):
+        r = api_configurada.put("/api/config", json={
+            "servicos": {"05762": {"aliquota": 0.02, "descricao_padrao": "x"}}
+        })
+        assert r.status_code == 200
+
+    def test_aliquota_negativa_barrada(self, api_configurada):
+        r = api_configurada.put("/api/config", json={
+            "servicos": {"05762": {"aliquota": -0.01}}
+        })
+        assert r.status_code == 422
+
     def test_get_nao_expoe_certificado(self, api_configurada):
         cfg = api_configurada.get("/api/config").json()
         assert "certificado" not in cfg
