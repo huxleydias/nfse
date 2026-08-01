@@ -57,6 +57,15 @@ entao a checagem e pelo magic number `%PDF`.
 - O xmldsig da prefeitura exige `Transforms` e `KeyInfo/X509Data/X509Certificate` na Signature (schema customizado).
 - Consulta por periodo: metodo `ConsultaNFeEmitidas` com `PedidoConsultaNFePeriodo_v02.xsd`.
 
+## Chaves de API e servidor MCP
+
+- Uma chave (`nfse_...`) autentica a API REST e o MCP. Banco guarda so o hash SHA-256; o valor em claro existe apenas na resposta de criacao. Nunca logar nem devolver o valor em outro lugar.
+- `API_TOKEN` do ambiente segue valendo em paralelo, para integracoes antigas.
+- O servidor MCP e criado por **fabrica** (`criar_servidor()`), nao no import: o session manager do SDK so roda uma vez por instancia, e cada startup (inclusive de cada TestClient) precisa de uma limpa. Por isso existe o delegador `MontagemMCP`, que recebe o app pronto no lifespan.
+- Autenticacao do MCP fica na borda (`MontagemMCP.__call__`), antes do SDK: sem chave valida a requisicao nem chega nas ferramentas.
+- Protecao de DNS rebinding do SDK: allowlist vazia recusa todo Host que nao seja localhost, o que derruba producao. Controlada por `MCP_ALLOWED_HOSTS`; sem a variavel fica desligada (seguro aqui, porque a auth e por header, sem cookie).
+- Ferramenta que gera efeito irreversivel (emitir com modo teste desligado, cancelar) precisa dizer isso na descricao, para o modelo confirmar com o usuario antes.
+
 ## Comandos
 
 ```bash

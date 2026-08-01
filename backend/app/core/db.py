@@ -34,7 +34,7 @@ def get_session():
 
 
 def init_db():
-    from app.models import nota, config_store  # noqa: F401
+    from app.models import api_key, config_store, nota  # noqa: F401
     Base.metadata.create_all(get_engine())
 
 

@@ -7,6 +7,7 @@ import Notas from "@/pages/Notas"
 import Emitir from "@/pages/Emitir"
 import Config from "@/pages/Config"
 import Certificado from "@/pages/Certificado"
+import Chaves from "@/pages/Chaves"
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/emitir" element={<Emitir />} />
             <Route path="/config" element={<Config />} />
             <Route path="/certificado" element={<Certificado />} />
+            <Route path="/chaves" element={<Chaves />} />
           </Route>
         </Routes>
         <Toaster />

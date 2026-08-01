@@ -5,6 +5,7 @@ Emissor de NFS-e direto no webservice oficial da Prefeitura de Sao Paulo (LoteNF
 - Backend: Python + FastAPI (assinatura XML local com certificado A1, validacao XSD antes de cada envio)
 - Frontend: React + shadcn (login, notas, emissao manual, configuracao, certificado)
 - API generica com bearer token para automacoes (n8n, WooCommerce, qualquer cliente)
+- Servidor MCP para conectar assistentes de IA (Claude, Cursor e afins)
 - PDF oficial da nota, buscado no portal da prefeitura
 - Banco SQLite e certificado em volume persistente (Railway)
 
@@ -107,9 +108,50 @@ backend/.venv/bin/python scripts/teste_envio_real.py
 
 Com o smoke passando, desligue o modo teste na Configuracao. A primeira emissao real recomendada: nota de R$ 1,00 para voce mesmo, cancelada em seguida pela UI.
 
+## Chaves de API
+
+A tela **Chaves de API** cria e revoga as chaves que autenticam tanto a API REST quanto o servidor MCP. A chave completa aparece **uma unica vez**, na criacao: o banco guarda so o hash SHA-256, entao nem um vazamento do banco devolve a chave. A lista mostra apenas o prefixo, o suficiente para identificar qual e qual.
+
+Revogar tem efeito imediato: a chave para de funcionar na API e no MCP na mesma hora, sem como reativar.
+
+A variavel de ambiente `API_TOKEN` continua valendo em paralelo, para integracoes anteriores a essa tela.
+
+## MCP: conectar um assistente de IA
+
+O sistema expoe um servidor MCP em `/mcp` (transporte Streamable HTTP), autenticado com uma chave da tela de Chaves. Com ele, um assistente emite, consulta e cancela notas conversando com voce.
+
+Em clientes que usam arquivo de configuracao:
+
+```json
+{
+  "mcpServers": {
+    "nfse": {
+      "type": "http",
+      "url": "https://SEU-DOMINIO/mcp",
+      "headers": { "Authorization": "Bearer SUA_CHAVE" }
+    }
+  }
+}
+```
+
+Ferramentas disponiveis:
+
+| Ferramenta | O que faz |
+|---|---|
+| `consultar_configuracao` | prestador, leiaute e se o modo teste esta ativo |
+| `listar_notas` | lista com filtros de status e periodo |
+| `consultar_nota` | detalhe de uma nota, com link do PDF |
+| `emitir_nota` | emite (ou so valida, no modo teste) |
+| `cancelar_nota` | cancela na prefeitura |
+| `sincronizar_notas` | puxa notas emitidas fora do sistema |
+
+As descricoes avisam o modelo de que emitir gera documento fiscal real com o modo teste desligado e que cancelar e irreversivel, mas **o modo teste e quem garante**: deixe ativo enquanto estiver experimentando.
+
+Uma observacao sobre `MCP_ALLOWED_HOSTS`: o SDK do MCP traz protecao contra DNS rebinding validando o header `Host` contra uma allowlist, e a lista vazia recusa qualquer dominio que nao seja localhost. Informe seus dominios nessa variavel (separados por virgula) para liga-la. Sem a variavel a protecao fica desligada, o que e seguro aqui porque a autenticacao e por chave no header, sem cookie de sessao: nao existe o ataque que ela previne.
+
 ## API
 
-Autenticacao: header `Authorization: Bearer $API_TOKEN`.
+Autenticacao: header `Authorization: Bearer <chave>`, com uma chave da tela de Chaves de API ou o `API_TOKEN` do ambiente.
 
 Emitir nota:
 
@@ -143,6 +185,9 @@ Outros endpoints:
 | GET | `/api/notas/{id}/pdf` | PDF oficial da nota (`?download=true` para baixar) |
 | DELETE | `/api/notas/{id}` | cancelar a nota na prefeitura |
 | POST | `/api/notas/sync` | puxar da prefeitura as notas de um periodo |
+| GET/POST | `/api/chaves` | listar e criar chaves de API (sessao da UI) |
+| DELETE | `/api/chaves/{id}` | revogar chave (sessao da UI) |
+| POST | `/mcp` | servidor MCP (Streamable HTTP) |
 | GET | `/api/health` | healthcheck |
 
 Erros: `422` payload ou schema invalido, `400` recusa da prefeitura (codigos originais no corpo), `409` certificado ausente/vencido ou ref em processamento, `502` prefeitura fora do ar.

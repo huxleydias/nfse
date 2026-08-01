@@ -3,6 +3,7 @@ import {
   FileBadgeIcon,
   FilePlus2Icon,
   FileTextIcon,
+  KeyRoundIcon,
   LogOutIcon,
   Settings2Icon,
   ShieldCheckIcon,
@@ -23,6 +24,7 @@ const itens = [
   { title: "Emitir nota", url: "/emitir", icon: FilePlus2Icon },
   { title: "Configuracao", url: "/config", icon: Settings2Icon },
   { title: "Certificado", url: "/certificado", icon: ShieldCheckIcon },
+  { title: "Chaves de API", url: "/chaves", icon: KeyRoundIcon },
 ]
 
 export function AppSidebar({

@@ -83,6 +83,16 @@ export interface CertificadoMeta {
   vencido: boolean
 }
 
+export interface ChaveApi {
+  id: number
+  nome: string
+  prefixo: string
+  criada_em: string
+  ultimo_uso_em: string | null
+  revogada_em: string | null
+  ativa: boolean
+}
+
 export const api = {
   login: (usuario: string, senha: string) =>
     request<{ ok: boolean }>("/api/auth/login", {
@@ -119,6 +129,16 @@ export const api = {
   obterConfig: () => request<Config>("/api/config"),
   salvarConfig: (cfg: Partial<Config>) =>
     request<Config>("/api/config", { method: "PUT", body: JSON.stringify(cfg) }),
+
+  listarChaves: () => request<{ chaves: ChaveApi[] }>("/api/chaves"),
+  /** O valor em claro so vem nesta resposta; depois some. */
+  criarChave: (nome: string) =>
+    request<{ chave: ChaveApi; valor: string }>("/api/chaves", {
+      method: "POST",
+      body: JSON.stringify({ nome }),
+    }),
+  revogarChave: (id: number) =>
+    request<{ chave: ChaveApi }>(`/api/chaves/${id}`, { method: "DELETE" }),
 
   statusCertificado: () =>
     request<{ certificado: CertificadoMeta | null }>("/api/certificado"),

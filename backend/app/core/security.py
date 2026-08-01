@@ -38,11 +38,49 @@ def validar_sessao(token: str) -> bool:
         return False
 
 
-def _bearer_valido(authorization: str | None) -> bool:
+def extrair_bearer(authorization: str | None) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        return ""
+    return authorization.removeprefix("Bearer ").strip()
+
+
+def token_do_ambiente_valido(token_recebido: str) -> bool:
+    """Token unico vindo de API_TOKEN. Continua valendo para nao quebrar
+    integracoes anteriores as chaves gerenciaveis."""
     token = api_token()
-    if not token or not authorization or not authorization.startswith("Bearer "):
+    if not token or not token_recebido:
         return False
-    return secrets.compare_digest(authorization.removeprefix("Bearer "), token)
+    return secrets.compare_digest(token_recebido, token)
+
+
+def api_key_valida(token_recebido: str) -> bool:
+    """Chave criada na tela de Chaves de API (tabela api_keys).
+
+    Falha de banco (banco ainda nao criado, por exemplo) significa apenas
+    "nao autenticado por chave": nunca deve derrubar a requisicao.
+    """
+    if not token_recebido:
+        return False
+    from app.core.db import get_session
+    from app.models import api_key as modelo
+
+    try:
+        session = get_session()
+    except Exception:
+        return False
+    try:
+        return modelo.validar(session, token_recebido) is not None
+    except Exception:
+        return False
+    finally:
+        session.close()
+
+
+def _bearer_valido(authorization: str | None) -> bool:
+    recebido = extrair_bearer(authorization)
+    if not recebido:
+        return False
+    return token_do_ambiente_valido(recebido) or api_key_valida(recebido)
 
 
 def sessao_requerida(nfse_sessao: str | None = Cookie(default=None)):

@@ -1,77 +1,7 @@
 import io
 
-import bcrypt
-import pytest
-from fastapi.testclient import TestClient
-
 from tests.conftest import SENHA_PFX
-from tests.test_emitter import ClientFake, resposta_sucesso
 from tests.test_parser import envelopar_soap
-
-
-@pytest.fixture
-def api(tmp_path, monkeypatch, pfx_bytes):
-    hash_ = bcrypt.hashpw(b"senha-forte", bcrypt.gensalt()).decode()
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("SECRET_KEY", "chave-de-teste-para-fernet-e-sessao")
-    monkeypatch.setenv("ADMIN_USER", "admin")
-    monkeypatch.setenv("ADMIN_PASSWORD_HASH", hash_)
-    monkeypatch.setenv("API_TOKEN", "token-api-de-teste-com-32-chars-ok")
-
-    from app.core import db
-    db.reset_engine_para_testes()
-
-    from app.core import security
-    security.login_limiter._hits.clear()
-
-    from app.main import app
-    with TestClient(app, base_url="https://testserver") as client:
-        yield client
-    db.reset_engine_para_testes()
-
-
-@pytest.fixture
-def api_logada(api):
-    r = api.post("/api/auth/login", json={"usuario": "admin", "senha": "senha-forte"})
-    assert r.status_code == 200
-    return api
-
-
-@pytest.fixture
-def api_configurada(api_logada, pfx_bytes, monkeypatch):
-    """Sessao logada, certificado enviado, config de prestador e servico pronta."""
-    api = api_logada
-    r = api.post(
-        "/api/certificado",
-        files={"arquivo": ("cert.pfx", io.BytesIO(pfx_bytes), "application/x-pkcs12")},
-        data={"senha": SENHA_PFX},
-    )
-    assert r.status_code == 200
-    r = api.put("/api/config", json={
-        "prestador": {
-            "cnpj": "11222333000181",
-            "inscricao_municipal": "12345678",
-            "razao_social": "EMPRESA EXEMPLO LTDA",
-            "email": "contato@exemplo.com.br",
-        },
-        "servicos": {
-            "05762": {
-                "descricao_padrao": "Treinamento",
-                "aliquota": 0.02, "iss_retido": False,
-                "nbs": "000000000", "c_class_trib": "000001", "c_ind_op": "000000",
-                "fin_nfse": 0, "ind_final": 1, "ind_dest": 0,
-            }
-        },
-        "modo_teste": False,
-    })
-    assert r.status_code == 200
-
-    fake = ClientFake(resposta_envio=resposta_sucesso())
-    monkeypatch.setattr(
-        "app.api.notas.SoapClient", lambda cert, key: fake
-    )
-    api.soap_fake = fake
-    return api
 
 
 PAYLOAD = {

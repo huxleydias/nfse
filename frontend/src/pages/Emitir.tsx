@@ -163,7 +163,7 @@ export default function Emitir() {
 
   if (emitida) {
     return (
-      <div className="max-w-3xl space-y-4">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
         <h1 className="text-2xl font-bold">Nota emitida</h1>
 
         <Alert className="border-green-300 bg-green-50 text-green-900">
@@ -214,7 +214,7 @@ export default function Emitir() {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <h1 className="text-2xl font-bold">Emitir nota</h1>
 
       {cfg?.modo_teste && (

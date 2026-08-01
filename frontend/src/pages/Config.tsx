@@ -92,7 +92,7 @@ export default function Config() {
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Configuracao</h1>
         <Button onClick={salvar} disabled={salvando}>

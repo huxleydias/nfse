@@ -35,7 +35,7 @@ export default function Certificado() {
   }
 
   return (
-    <div className="max-w-xl space-y-4">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <h1 className="text-2xl font-bold">Certificado digital A1</h1>
 
       {meta ? (
