@@ -1,6 +1,9 @@
 # NFS-e
 
-Emissor de NFS-e direto no webservice oficial da Prefeitura de Sao Paulo (LoteNFe), sem intermediarios. Suporta os dois leiautes do XML: o **1** (pre reforma, em uso hoje) e o **2** (reforma tributaria IBS/CBS).
+Emissor de NFS-e sem intermediarios, em dois ambientes:
+
+- **Municipal:** webservice oficial da Prefeitura de Sao Paulo (LoteNFe), nos leiautes **1** (pre reforma) e **2** (reforma tributaria IBS/CBS).
+- **Nacional:** Sistema Nacional NFS-e (Sefin Nacional, DPS v1.01). Obrigatorio para ME e EPP do Simples Nacional em competencias a partir de 01/11/2026.
 
 - Backend: Python + FastAPI (assinatura XML local com certificado A1, validacao XSD antes de cada envio)
 - Frontend: React + shadcn (login, notas, emissao manual, configuracao, certificado)
@@ -43,6 +46,35 @@ No leiaute 1 os campos NBS, cClassTrib e cIndOp continuam salvos na configuracao
 
 Atencao: NT 2025.002, grupo W03, Imposto Seletivo e `pDevTrib` sao da NF-e de mercadorias (modelo 55, SEFAZ nacional) e nao existem na NFS-e municipal de Sao Paulo. O leiaute da NFS-e paulistana e o do manual do webservice, nao o da NT.
 
+## Ambiente nacional (Sistema Nacional NFS-e)
+
+A Resolucao CGSN 191/2026 obriga ME e EPP optantes do Simples Nacional a emitir so pelo Emissor Nacional (web ou API) para competencias a partir de 01/11/2026, mesmo em municipio com sistema proprio. O webservice de Sao Paulo passou a recusar esses contribuintes com o erro 1647 e segue valendo para o Regime Normal e para emissao retroativa ate 31/10/2026.
+
+Onde muda: **Configuracao > Ambiente de emissao**. Com `nacional`:
+
+- A nota vira uma DPS (Declaracao de Prestacao de Servicos) v1.01, assinada com o mesmo certificado A1, validada contra os XSDs oficiais em `backend/schemas/nacional/1.01/` e enviada em JSON com o XML em GZip + Base64, com TLS mutuo.
+- Modo teste ligado: a nota sai na **producao restrita** (homologacao) do Sistema Nacional, sem valor fiscal, e fica gravada como `nacional_homologacao`, com a ref prefixada por `homologacao:` para nao bloquear a mesma ref em producao. Da para testar o cancelamento ali.
+- Cada nota guarda o ambiente em que saiu: notas antigas continuam sendo canceladas e consultadas na prefeitura.
+- Sincronizacao continua so no municipal.
+
+O que configurar no bloco **Sistema Nacional**:
+
+| Campo | Para que serve |
+|---|---|
+| Percentual aproximado de tributos do Simples (`p_tot_trib_sn`) | Obrigatorio para ME/EPP (o indicador alternativo e proibido para esse regime). Sem valor a emissao e recusada antes de enviar. Confirme com o contador |
+| Apuracao dos tributos (`reg_ap_trib_sn`) | 1 quando federais e ISSQN sao apurados pelo Simples |
+| Serie e proximo numero da DPS | Serie numerica de 1 a 49999. O contador so avanca; a homologacao tem contador proprio |
+| Municipio emissor | Codigo IBGE (Sao Paulo e `3550308`) |
+| Informar inscricao municipal | A IM so vai na DPS se o prestador tiver registro complementar no cadastro nacional (CNC) do municipio |
+
+Em cada servico: **codigo de tributacao nacional** (6 digitos, ex.: instrucao e treinamento `080201`) e, se quiser, o **NBS** (9 digitos).
+
+Regras do Anexo I que o sistema ja segue: sem prefixo de namespace no XML, sem nome e endereco do prestador quando ele mesmo emite, sem aliquota para ME/EPP apurando pelo Simples sem retencao, e sem o grupo IBS/CBS (para o Simples ele vale a partir de 01/01/2027).
+
+Protecao contra nota duplicada: a identificacao da DPS (municipio + CNPJ + serie + numero) fica gravada na nota. Se a rede cair no meio do envio, a nova tentativa da mesma `ref_externa` reaproveita essa identificacao e pergunta ao Sistema Nacional se a DPS ja virou nota antes de reenviar.
+
+Hoje a emissao nacional cobre o prestador como emitente (ME/EPP do Simples). Substituicao de nota, demais eventos e o PDF proprio (DANFSe) ficam para depois.
+
 ## PDF da nota
 
 O webservice devolve XML, nunca PDF. Quem gera o documento impresso e um endpoint publico do portal da NF-e paulistana, protegido pelo codigo de verificacao da nota. O sistema busca esse PDF server-side e entrega com nome de arquivo decente:
@@ -53,6 +85,8 @@ O webservice devolve XML, nunca PDF. Quem gera o documento impresso e um endpoin
 Na interface: logo apos emitir, a tela de confirmacao ja mostra o PDF junto com os botoes de baixar e abrir. Na lista em `/notas`, cada nota autorizada tem os botoes **PDF** e **Baixar**, e o dialog de detalhe mostra o documento inteiro.
 
 Notas com erro ou ainda em processamento nao tem PDF: a rota responde 409, porque o documento so existe depois que a prefeitura autoriza.
+
+No ambiente nacional a API de geracao do DANFSe foi suspensa em 03/08/2026 (NT 008). A nota nacional traz `pdf_url` com o link da Consulta Publica (`https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=<chave>`, o mesmo do QR Code do DANFSe), e `GET /api/notas/{id}/pdf` responde 307 para esse link.
 
 ## Setup local
 
@@ -138,12 +172,12 @@ Ferramentas disponiveis:
 
 | Ferramenta | O que faz |
 |---|---|
-| `consultar_configuracao` | prestador, leiaute e se o modo teste esta ativo |
+| `consultar_configuracao` | ambiente, prestador, leiaute e se o modo teste esta ativo |
 | `listar_notas` | lista com filtros de status e periodo |
-| `consultar_nota` | detalhe de uma nota, com link do PDF |
-| `emitir_nota` | emite (ou so valida, no modo teste) |
-| `cancelar_nota` | cancela na prefeitura |
-| `sincronizar_notas` | puxa notas emitidas fora do sistema |
+| `consultar_nota` | detalhe de uma nota, com link do PDF (ou da Consulta Publica no nacional) |
+| `emitir_nota` | emite no ambiente configurado; `competencia` opcional no nacional |
+| `cancelar_nota` | cancela no ambiente em que a nota saiu; `motivo_codigo` e `motivo` no nacional |
+| `sincronizar_notas` | puxa notas emitidas fora do sistema (so municipal) |
 
 As descricoes avisam o modelo de que emitir gera documento fiscal real com o modo teste desligado e que cancelar e irreversivel, mas **o modo teste e quem garante**: deixe ativo enquanto estiver experimentando.
 
@@ -173,8 +207,10 @@ curl -X POST https://SEU-DOMINIO/api/notas \
 ```
 
 - `ref_externa` (opcional) garante idempotencia: repetir a mesma ref devolve a nota ja emitida em vez de duplicar. Use o ID do pedido no seu sistema.
-- Tomador CNPJ exige endereco (`tomador.endereco` com cep, logradouro, numero, bairro, codigo_municipio, uf).
-- Campos fiscais (aliquota, iss_retido, deducoes, valores_retencao, fiscal) aceitam override por request; o default vem do cadastro do servico na Configuracao.
+- Tomador CNPJ exige endereco no municipal (`tomador.endereco` com cep, logradouro, numero, bairro, codigo_municipio, uf). No nacional o endereco e opcional e so entra com municipio, CEP, logradouro e bairro.
+- Campos fiscais (aliquota, iss_retido, deducoes, valores_retencao, fiscal) aceitam override por request no municipal; o default vem do cadastro do servico na Configuracao.
+- `competencia` (AAAA-MM-DD, opcional, padrao hoje em Brasilia, nunca futura): data do servico na DPS do nacional. Ignorada no municipal.
+- No nacional a resposta traz `chave_acesso`, `pdf_url` e, quando o Sistema Nacional mandar, `alertas`.
 
 Outros endpoints:
 
@@ -182,15 +218,15 @@ Outros endpoints:
 |---|---|---|
 | GET | `/api/notas?inicio=AAAA-MM-DD&fim=...&status=...` | listar notas |
 | GET | `/api/notas/{id}` | detalhe com XMLs enviados/retornados |
-| GET | `/api/notas/{id}/pdf` | PDF oficial da nota (`?download=true` para baixar) |
-| DELETE | `/api/notas/{id}` | cancelar a nota na prefeitura |
-| POST | `/api/notas/sync` | puxar da prefeitura as notas de um periodo |
+| GET | `/api/notas/{id}/pdf` | PDF oficial da nota (`?download=true` para baixar); no nacional, 307 para a Consulta Publica |
+| DELETE | `/api/notas/{id}` | cancelar a nota no ambiente em que saiu; no nacional aceita `?motivo_codigo=1\|2\|9&motivo=...` (15 a 255 caracteres, padrao "Erro na emissao da nota") |
+| POST | `/api/notas/sync` | puxar da prefeitura as notas de um periodo (so municipal) |
 | GET/POST | `/api/chaves` | listar e criar chaves de API (sessao da UI) |
 | DELETE | `/api/chaves/{id}` | revogar chave (sessao da UI) |
 | POST | `/mcp` | servidor MCP (Streamable HTTP) |
 | GET | `/api/health` | healthcheck |
 
-Erros: `422` payload ou schema invalido, `400` recusa da prefeitura (codigos originais no corpo), `409` certificado ausente/vencido ou ref em processamento, `502` prefeitura fora do ar.
+Erros: `422` payload, schema ou configuracao invalida, `400` recusa do emissor oficial (codigos originais em `erros_prefeitura` e quem recusou em `emissor`: "Prefeitura" ou "Sistema Nacional"), `409` certificado ausente/vencido, ref em processamento ou operacao indisponivel no ambiente, `502` emissor fora do ar ou certificado recusado no TLS.
 
 ## Deploy no Railway
 
@@ -213,10 +249,12 @@ O guia tambem traz uma tabela de problemas comuns (deploys pausados no plano Hob
 ## Estrutura
 
 ```
-backend/app/nfse/     nucleo: builder XML v2, assinaturas, XSD, SOAP, parser
+backend/app/nfse/     nucleo municipal: builder XML, assinaturas, XSD, SOAP, parser
+backend/app/nfse/nacional/  Sistema Nacional: DPS, evento, assinatura por Id, cliente REST, retorno
 backend/app/api/      rotas REST
-backend/app/core/     settings, db, security, crypto
+backend/app/core/     settings, db (com migracao de colunas), security, crypto
 backend/schemas/      XSDs oficiais v02-5 da prefeitura
+backend/schemas/nacional/  XSDs oficiais v1.01 do Sistema Nacional (ver LEIAME.md)
 frontend/             React + shadcn
 scripts/              smoke test real (TesteEnvioLoteRPS)
 docs/                 spec, plano e guia de deploy
@@ -228,16 +266,16 @@ docs/                 spec, plano e guia de deploy
 cd backend && .venv/bin/pytest
 ```
 
-141 testes no backend (pytest) e 17 no frontend (vitest): vetores oficiais da string de assinatura do manual, XML validado contra os XSDs oficiais nos dois leiautes, assinatura XMLDSig verificavel, fluxo completo com SOAP mockado, API com TestClient e mascaras de entrada.
+262 testes no backend (pytest) e 17 no frontend (vitest): vetores oficiais da string de assinatura do manual, XML validado contra os XSDs oficiais nos dois leiautes municipais e na DPS nacional, assinatura XMLDSig conferida por verificador independente, fluxo completo com SOAP e Sefin simulados (inclusive falha de rede sem nota duplicada), API e MCP com TestClient e mascaras de entrada.
 
-Nenhum teste toca a rede: o cliente SOAP e o download do PDF sao mockados, e o certificado e um A1 self-signed gerado em memoria pela fixture. Da pra rodar a suite inteira sem certificado nem credencial.
+Nenhum teste toca a rede: os clientes SOAP e da Sefin e o download do PDF sao mockados, e o certificado e um A1 self-signed gerado em memoria pela fixture. Da pra rodar a suite inteira sem certificado nem credencial.
 
 ## Contribuindo
 
 Issues e pull requests sao bem-vindos. Antes de abrir um PR:
 
 ```bash
-cd backend && .venv/bin/pytest      # 141 testes
+cd backend && .venv/bin/pytest      # 262 testes
 cd ../frontend && npm test          # 17 testes
 ```
 

@@ -38,16 +38,22 @@ from app.nfse.emitter import (
     emitir,
     sincronizar,
 )
+from app.nfse.nacional import AMBIENTE_HOMOLOGACAO, url_consulta_publica
+from app.nfse.parser import RespostaInvalidaError
 from app.nfse.pdf import montar_url_pdf
 from app.nfse.signer import CertificadoError
 from app.nfse.soap_client import PrefeituraIndisponivelError, SoapClient
+from app.nfse.xsd_validator import XSDValidationError
 
 INSTRUCOES = (
-    "Emite, consulta e cancela Notas Fiscais de Servico Eletronicas na "
-    "Prefeitura de Sao Paulo. ATENCAO: emitir_nota gera documento fiscal real "
-    "quando o modo teste esta desligado, e cancelar_nota e irreversivel. "
-    "Confirme os dados com o usuario antes de chamar essas duas. Use "
-    "consultar_configuracao para saber se o modo teste esta ativo."
+    "Emite, consulta e cancela Notas Fiscais de Servico Eletronicas. O "
+    "ambiente vem da configuracao: municipal (webservice da Prefeitura de Sao "
+    "Paulo) ou nacional (Sistema Nacional NFS-e, obrigatorio para ME/EPP do "
+    "Simples a partir de 01/11/2026). ATENCAO: emitir_nota gera documento "
+    "fiscal real quando o modo teste esta desligado, e cancelar_nota e "
+    "irreversivel. Confirme os dados com o usuario antes de chamar essas duas. "
+    "Use consultar_configuracao para saber o ambiente e se o modo teste esta "
+    "ativo."
 )
 
 
@@ -62,7 +68,12 @@ def _erro(mensagem: str) -> dict:
 
 def _com_pdf(session, nota: Nota) -> dict:
     dados = nota.to_dict()
-    if nota.numero_nfse and nota.codigo_verificacao:
+    if nota.chave_acesso:
+        # Nacional: link da Consulta Publica, onde o DANFSe oficial e baixado
+        dados["pdf_url"] = url_consulta_publica(
+            nota.chave_acesso, homologacao=nota.ambiente == AMBIENTE_HOMOLOGACAO
+        )
+    elif nota.numero_nfse and nota.codigo_verificacao:
         from app.models.config_store import get_config
 
         inscricao = get_config(session)["prestador"]["inscricao_municipal"]
@@ -77,20 +88,47 @@ def consultar_configuracao() -> dict:
     try:
         from app.models.config_store import get_config
 
+        from app.models.config_store import ambiente_config
+
         cfg = get_config(session)
+        modo_teste = cfg.get("modo_teste", True)
+        ambiente = ambiente_config(cfg)
+        nacional = cfg.get("nacional", {})
+        if ambiente == "nacional":
+            onde = (
+                "producao restrita do Sistema Nacional (sem valor fiscal)"
+                if modo_teste else "Sistema Nacional (nota real)"
+            )
+        else:
+            onde = (
+                "validacao na Prefeitura, nenhuma nota gerada"
+                if modo_teste else "Prefeitura de Sao Paulo (nota real)"
+            )
         return {
             "ok": True,
-            "modo_teste": cfg.get("modo_teste", True),
-            "emissao_gera_nota_real": not cfg.get("modo_teste", True),
+            "ambiente": ambiente,
+            "modo_teste": modo_teste,
+            "emissao_gera_nota_real": not modo_teste,
+            "destino_da_emissao": onde,
             "layout": cfg.get("layout", 1),
             "prestador": cfg.get("prestador", {}),
             "serie_rps": cfg.get("serie_rps"),
             "proximo_numero_rps": cfg.get("proximo_numero_rps"),
+            "nacional": {
+                "serie_dps": nacional.get("serie_dps"),
+                "proximo_numero_dps": nacional.get("proximo_numero_dps"),
+                "proximo_numero_dps_homologacao": nacional.get("proximo_numero_dps_homologacao"),
+                "op_simp_nac": nacional.get("op_simp_nac"),
+                "reg_ap_trib_sn": nacional.get("reg_ap_trib_sn"),
+                "p_tot_trib_sn": nacional.get("p_tot_trib_sn"),
+                "informar_im": nacional.get("informar_im"),
+            },
             "servicos": [
                 {
                     "codigo": codigo,
                     "descricao": servico.get("descricao_padrao", ""),
                     "aliquota_iss": servico.get("aliquota"),
+                    "codigo_tributacao_nacional": servico.get("c_trib_nac"),
                 }
                 for codigo, servico in cfg.get("servicos", {}).items()
             ],
@@ -140,6 +178,7 @@ def emitir_nota(
     email: str = "",
     ref_externa: str | None = None,
     endereco: dict | None = None,
+    competencia: str | None = None,
 ) -> dict:
     session = get_session()
     try:
@@ -155,6 +194,7 @@ def emitir_nota(
                 valor=valor,
                 descricao=descricao,
                 ref_externa=ref_externa,
+                competencia=competencia or None,
             )
         except Exception as e:
             return _erro(f"Dados invalidos: {e}")
@@ -173,13 +213,15 @@ def emitir_nota(
         except PrefeituraRecusouError as e:
             return {
                 "ok": False,
-                "erro": "Prefeitura recusou a emissao",
+                "erro": f"{e.emissor} recusou a emissao",
                 "erros_prefeitura": e.erros,
             }
-        except PrefeituraIndisponivelError as e:
+        except XSDValidationError as e:
+            return {"ok": False, "erro": "XML fora do schema oficial", "erros_xsd": e.erros}
+        except (PrefeituraIndisponivelError, RespostaInvalidaError) as e:
             return _erro(str(e))
 
-        if resultado.get("teste"):
+        if resultado.get("teste") and "nota" not in resultado:
             return {
                 "ok": True,
                 "teste": True,
@@ -187,17 +229,25 @@ def emitir_nota(
                 "resultado": resultado["resultado"],
             }
 
-        return {
+        resposta = {
             "ok": True,
-            "teste": False,
+            "teste": bool(resultado.get("teste")),
             "idempotente": resultado.get("idempotente", False),
             "nota": _com_pdf(session, resultado["nota"]),
         }
+        if resultado.get("teste"):
+            resposta["mensagem"] = (
+                "Modo teste ativo: nota emitida na producao restrita do Sistema "
+                "Nacional, sem valor fiscal"
+            )
+        if resultado.get("alertas"):
+            resposta["alertas"] = resultado["alertas"]
+        return resposta
     finally:
         session.close()
 
 
-def cancelar_nota(nota_id: int) -> dict:
+def cancelar_nota(nota_id: int, motivo_codigo: int = 1, motivo: str | None = None) -> dict:
     session = get_session()
     try:
         nota = session.get(Nota, nota_id)
@@ -214,18 +264,22 @@ def cancelar_nota(nota_id: int) -> dict:
 
         try:
             client, cert, key = _cliente(session)
-            nota = cancelar(nota, session, client, cert, key)
+            nota = cancelar(nota, session, client, cert, key, motivo_codigo, motivo)
         except CertificadoError as e:
             return _erro(str(e))
+        except EmissaoInvalidaError as e:
+            return _erro("; ".join(e.detalhes))
         except PrefeituraRecusouError as e:
             return {
                 "ok": False,
-                "erro": "Prefeitura recusou o cancelamento",
+                "erro": f"{e.emissor} recusou o cancelamento",
                 "erros_prefeitura": e.erros,
             }
-        except PrefeituraIndisponivelError as e:
+        except XSDValidationError as e:
+            return {"ok": False, "erro": "XML fora do schema oficial", "erros_xsd": e.erros}
+        except (PrefeituraIndisponivelError, RespostaInvalidaError) as e:
             return _erro(str(e))
-        return {"ok": True, "nota": nota.to_dict()}
+        return {"ok": True, "nota": _com_pdf(session, nota)}
     finally:
         session.close()
 
@@ -247,6 +301,8 @@ def sincronizar_notas(inicio: str | None = None, fim: str | None = None) -> dict
             resultado = sincronizar(dt_inicio, dt_fim, session, client, cert, key)
         except CertificadoError as e:
             return _erro(str(e))
+        except EmissaoInvalidaError as e:
+            return _erro("; ".join(e.detalhes))
         except PrefeituraIndisponivelError as e:
             return _erro(str(e))
         return {"ok": True, **resultado}
@@ -258,9 +314,10 @@ FERRAMENTAS = [
     (
         consultar_configuracao,
         "Consultar configuracao",
-        "Mostra como o emissor esta configurado: prestador, leiaute do XML, se o "
-        "modo teste esta ativo e quais codigos de servico existem. Chame antes de "
-        "emitir para saber se a emissao sera real ou simulada.",
+        "Mostra como o emissor esta configurado: ambiente (municipal ou "
+        "nacional), prestador, leiaute do XML, se o modo teste esta ativo e "
+        "quais codigos de servico existem. Chame antes de emitir para saber "
+        "onde a nota sai e se a emissao sera real ou de teste.",
     ),
     (
         listar_notas,
@@ -272,23 +329,28 @@ FERRAMENTAS = [
     (
         consultar_nota,
         "Consultar nota",
-        "Detalha uma nota pelo id interno, incluindo o link do PDF oficial da "
-        "prefeitura quando a nota esta autorizada.",
+        "Detalha uma nota pelo id interno, incluindo o link do PDF oficial "
+        "quando a nota esta autorizada (portal da prefeitura no municipal, "
+        "Consulta Publica no nacional).",
     ),
     (
         emitir_nota,
         "Emitir nota",
-        "Emite uma NFS-e. Com o modo teste ativo o pedido e apenas validado na "
-        "prefeitura e nenhuma nota e gerada. Com o modo teste desligado isso cria "
-        "um DOCUMENTO FISCAL REAL: confirme valor, tomador e descricao com o "
-        "usuario antes de chamar. Tomador pessoa juridica precisa de endereco. "
-        "Use ref_externa (ex.: numero do pedido) para evitar nota duplicada em "
-        "caso de repeticao.",
+        "Emite uma NFS-e no ambiente configurado. Com o modo teste ativo: no "
+        "municipal o pedido so e validado na prefeitura; no nacional a nota sai "
+        "na producao restrita, sem valor fiscal. Com o modo teste desligado isso "
+        "cria um DOCUMENTO FISCAL REAL: confirme valor, tomador e descricao com "
+        "o usuario antes de chamar. Tomador pessoa juridica precisa de endereco "
+        "no municipal. competencia (AAAA-MM-DD, opcional, padrao hoje) e a data "
+        "do servico no nacional. Use ref_externa (ex.: numero do pedido) para "
+        "evitar nota duplicada em caso de repeticao.",
     ),
     (
         cancelar_nota,
         "Cancelar nota",
-        "Cancela na prefeitura uma nota autorizada. Acao irreversivel: confirme "
+        "Cancela uma nota autorizada no ambiente em que ela saiu. No nacional "
+        "aceita motivo_codigo (1 erro na emissao, 2 servico nao prestado, 9 "
+        "outros) e motivo (15 a 255 caracteres). Acao irreversivel: confirme "
         "com o usuario antes de chamar.",
     ),
     (
@@ -304,9 +366,9 @@ FERRAMENTAS = [
 def criar_servidor() -> MCPServer:
     servidor = MCPServer(
         name="nfse-sao-paulo",
-        title="NFS-e Sao Paulo",
+        title="NFS-e (Sao Paulo e Sistema Nacional)",
         instructions=INSTRUCOES,
-        version="1.0.0",
+        version="1.1.0",
     )
     for funcao, titulo, descricao in FERRAMENTAS:
         servidor.tool(title=titulo, description=descricao)(funcao)

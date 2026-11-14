@@ -4,9 +4,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { api, type Config as ConfigT, type ServicoConfig } from "@/lib/api"
+import {
+  api,
+  ApiError,
+  type Config as ConfigT,
+  type NacionalConfig,
+  type ServicoConfig,
+} from "@/lib/api"
 import {
   completarCodigo,
   documentoValido,
@@ -28,12 +41,16 @@ const SERVICO_VAZIO: ServicoConfig = {
   ind_final: 1,
   ind_dest: 0,
   c_loc_prestacao: "3550308",
+  c_trib_nac: "",
+  c_nbs: "",
 }
 
 export default function Config() {
   const [cfg, setCfg] = useState<ConfigT | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [novoCodigo, setNovoCodigo] = useState("")
+  // Texto do percentual enquanto digita: o numero sozinho perderia "6," no meio
+  const [pTotTexto, setPTotTexto] = useState<string | null>(null)
 
   useEffect(() => {
     api.obterConfig().then(setCfg)
@@ -44,6 +61,12 @@ export default function Config() {
   function setPrestador(campo: string, valor: string) {
     setCfg((c) => c && { ...c, prestador: { ...c.prestador, [campo]: valor } })
   }
+
+  function setNacional<K extends keyof NacionalConfig>(campo: K, valor: NacionalConfig[K]) {
+    setCfg((c) => c && { ...c, nacional: { ...c.nacional, [campo]: valor } })
+  }
+
+  const nacional = cfg.ambiente === "nacional"
 
   function setServico(codigo: string, campo: keyof ServicoConfig, valor: unknown) {
     setCfg(
@@ -84,8 +107,11 @@ export default function Config() {
       const salvo = await api.salvarConfig(cfg)
       setCfg(salvo)
       toast.success("Configuracao salva")
-    } catch {
-      toast.error("Falha ao salvar")
+    } catch (err) {
+      const detalhe = err instanceof ApiError && Array.isArray(err.detail)
+        ? `: ${(err.detail as string[]).join("; ")}`
+        : ""
+      toast.error(`Falha ao salvar${detalhe}`, { duration: 10000 })
     } finally {
       setSalvando(false)
     }
@@ -102,6 +128,31 @@ export default function Config() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Ambiente de emissao</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Select
+            value={cfg.ambiente}
+            onValueChange={(v) => setCfg({ ...cfg, ambiente: v as ConfigT["ambiente"] })}
+          >
+            <SelectTrigger className="w-full sm:w-96">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="municipal">Municipal: webservice da Prefeitura de SP</SelectItem>
+              <SelectItem value="nacional">Nacional: Sistema Nacional NFS-e (Sefin)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-muted-foreground">
+            ME e EPP do Simples Nacional emitem so no Sistema Nacional para competencias
+            a partir de 01/11/2026 (Resolucao CGSN 191/2026). Regime Normal continua no
+            municipal. Notas antigas sempre cancelam no ambiente em que sairam.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Modo de operacao</CardTitle>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
@@ -112,11 +163,123 @@ export default function Config() {
           <div>
             <p className="font-medium">Modo teste {cfg.modo_teste ? "ativo" : "desligado"}</p>
             <p className="text-sm text-muted-foreground">
-              Ativo: valida na prefeitura sem emitir nota. Desligado: emite nota REAL.
+              {nacional
+                ? "Ativo: emite na producao restrita do Sistema Nacional, sem valor fiscal. Desligado: emite nota REAL."
+                : "Ativo: valida na prefeitura sem emitir nota. Desligado: emite nota REAL."}
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {nacional && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sistema Nacional</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Percentual aproximado de tributos do Simples</Label>
+              <div className="relative">
+                <Input
+                  className="pr-8 text-right tabular-nums"
+                  inputMode="decimal"
+                  value={
+                    pTotTexto ??
+                    (cfg.nacional.p_tot_trib_sn == null
+                      ? ""
+                      : String(cfg.nacional.p_tot_trib_sn).replace(".", ","))
+                  }
+                  placeholder="0,00"
+                  onChange={(e) => {
+                    const texto = e.target.value.replace(/[^\d,]/g, "")
+                    setPTotTexto(texto)
+                    const numero = Number(texto.replace(",", "."))
+                    setNacional(
+                      "p_tot_trib_sn",
+                      texto === "" || Number.isNaN(numero) ? null : numero,
+                    )
+                  }}
+                  onBlur={() => setPTotTexto(null)}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Obrigatorio para ME/EPP (campo pTotTribSN). Confirme com o contador. Sem
+                valor, a emissao e recusada antes de enviar.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Apuracao dos tributos</Label>
+              <Select
+                value={String(cfg.nacional.reg_ap_trib_sn)}
+                onValueChange={(v) => setNacional("reg_ap_trib_sn", Number(v))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1: federais e ISSQN pelo Simples</SelectItem>
+                  <SelectItem value="2">2: federais pelo Simples, ISSQN por fora</SelectItem>
+                  <SelectItem value="3">3: federais e ISSQN por fora do Simples</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Emissao implementada para ME/EPP do Simples (situacao 3).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Serie da DPS</Label>
+              <Input
+                className="tabular-nums"
+                inputMode="numeric"
+                value={cfg.nacional.serie_dps}
+                onChange={(e) => setNacional("serie_dps", mascaraCodigo(e.target.value, 5))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Numero de 1 a 49999 (faixa de sistema proprio)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Proximo numero da DPS</Label>
+              <Input
+                type="number"
+                value={cfg.nacional.proximo_numero_dps}
+                onChange={(e) =>
+                  setNacional("proximo_numero_dps", parseInt(e.target.value || "1"))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                So avanca. Homologacao tem contador proprio (proximo:{" "}
+                {cfg.nacional.proximo_numero_dps_homologacao}).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Municipio emissor (IBGE)</Label>
+              <Input
+                className="tabular-nums"
+                inputMode="numeric"
+                value={cfg.nacional.c_loc_emi}
+                onChange={(e) => setNacional("c_loc_emi", mascaraCodigo(e.target.value, 7))}
+              />
+              <p className="text-xs text-muted-foreground">7 digitos. Sao Paulo e 3550308</p>
+            </div>
+            <div className="flex items-center gap-2 pt-5">
+              <Switch
+                checked={cfg.nacional.informar_im}
+                onCheckedChange={(v) => setNacional("informar_im", v)}
+              />
+              <div>
+                <Label>Informar inscricao municipal na DPS</Label>
+                <p className="text-xs text-muted-foreground">
+                  Desligue se o Sistema Nacional recusar a IM do prestador.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -334,6 +497,38 @@ export default function Config() {
                   />
                   <p className="text-xs text-muted-foreground">
                     IBGE, 7 digitos. Sao Paulo e 3550308
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Codigo de tributacao nacional</Label>
+                  <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
+                    value={s.c_trib_nac ?? ""}
+                    placeholder="080201"
+                    onChange={(e) =>
+                      setServico(codigo, "c_trib_nac", mascaraCodigo(e.target.value, 6))
+                    }
+                    onBlur={(e) =>
+                      e.target.value &&
+                      setServico(codigo, "c_trib_nac", completarCodigo(e.target.value, 6))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ambiente nacional, 6 digitos (Anexo I). Instrucao e treinamento e 080201
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label>NBS (nacional, opcional)</Label>
+                  <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
+                    value={s.c_nbs ?? ""}
+                    placeholder="000000000"
+                    onChange={(e) => setServico(codigo, "c_nbs", mascaraCodigo(e.target.value, 9))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    9 digitos. Vazio fica de fora da DPS
                   </p>
                 </div>
               </div>

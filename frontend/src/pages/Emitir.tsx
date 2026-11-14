@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { api, ApiError, type Config, type Nota } from "@/lib/api"
+import { api, ApiError, type Config, ehNacional, type Nota } from "@/lib/api"
 import {
   documentoValido,
   ehCnpj as docEhCnpj,
@@ -37,6 +37,8 @@ export default function Emitir() {
   const [servico, setServico] = useState("")
   const [valor, setValor] = useState("")
   const [descricao, setDescricao] = useState("")
+  // Nacional: data de competencia (vazio = hoje)
+  const [competencia, setCompetencia] = useState("")
 
   const [cep, setCep] = useState("")
   const [logradouro, setLogradouro] = useState("")
@@ -115,12 +117,20 @@ export default function Emitir() {
         servico,
         valor: valorNumerico,
         descricao,
+        ...(cfg?.ambiente === "nacional" && competencia ? { competencia } : {}),
       }
       const r = await api.emitirNota(payload)
-      if (r.teste) {
+      if (r.teste && !r.nota) {
         toast.success("Modo teste: pedido validado pela prefeitura, nenhuma nota emitida")
       } else if (r.nota) {
-        toast.success(`NFS-e ${r.nota.numero_nfse} emitida`)
+        toast.success(
+          r.teste
+            ? `NFS-e ${r.nota.numero_nfse} emitida na producao restrita (sem valor fiscal)`
+            : `NFS-e ${r.nota.numero_nfse} emitida`,
+        )
+        for (const alerta of r.alertas ?? []) {
+          toast.warning(`[${alerta.codigo}] ${alerta.descricao}`, { duration: 12000 })
+        }
         setEmitida(r.nota)
       }
     } catch (err) {
@@ -159,6 +169,47 @@ export default function Emitir() {
     setBairro("")
     setCodigoMunicipio("")
     setUf("")
+    setCompetencia("")
+  }
+
+  if (emitida && ehNacional(emitida)) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <h1 className="text-2xl font-bold">Nota emitida</h1>
+
+        <Alert className="border-green-300 bg-green-50 text-green-900">
+          <AlertTitle>
+            NFS-e {emitida.numero_nfse} autorizada no Sistema Nacional
+            {emitida.ambiente === "nacional_homologacao" ? " (producao restrita)" : ""}
+          </AlertTitle>
+          <AlertDescription>
+            {emitida.tomador_nome}:{" "}
+            {emitida.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.
+            Chave de acesso {emitida.chave_acesso}
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex flex-wrap gap-2">
+          {emitida.pdf_url && (
+            <Button asChild>
+              <a href={emitida.pdf_url} target="_blank" rel="noreferrer">
+                Abrir nota oficial
+              </a>
+            </Button>
+          )}
+          <Button variant="outline" onClick={novaEmissao}>
+            Emitir outra
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/notas")}>
+            Ver todas as notas
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          O PDF oficial (DANFSe) e baixado na Consulta Publica do Sistema Nacional, pela
+          chave de acesso.
+        </p>
+      </div>
+    )
   }
 
   if (emitida) {
@@ -221,8 +272,10 @@ export default function Emitir() {
         <Alert className="border-amber-300 bg-amber-50 text-amber-900">
           <AlertTitle>Modo teste ativo</AlertTitle>
           <AlertDescription>
-            A emissao valida tudo na prefeitura mas NAO gera nota real. Desative na
-            Configuracao quando estiver pronto.
+            {cfg.ambiente === "nacional"
+              ? "A nota sai na producao restrita do Sistema Nacional, sem valor fiscal."
+              : "A emissao valida tudo na prefeitura mas NAO gera nota real."}{" "}
+            Desative na Configuracao quando estiver pronto.
           </AlertDescription>
         </Alert>
       )}
@@ -382,6 +435,21 @@ export default function Emitir() {
                 {descricao.length}/2000 caracteres
               </p>
             </div>
+            {cfg?.ambiente === "nacional" && (
+              <div className="space-y-2">
+                <Label htmlFor="competencia">Competencia</Label>
+                <Input
+                  id="competencia"
+                  type="date"
+                  value={competencia}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setCompetencia(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Data em que o servico foi prestado. Vazio usa hoje
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
