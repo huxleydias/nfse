@@ -8,7 +8,7 @@ Emissor standalone de NFS-e no webservice da Prefeitura de Sao Paulo, layout v2 
 - Idioma de UI, mensagens, docs e commits: portugues (sem acentos em codigo/commits e permitido).
 - Segredos SO em variaveis de ambiente (`.env` local, Variables no Railway). Nunca em codigo ou config commitada. Valores com `$` (hash bcrypt) entre aspas simples no `.env`.
 - A senha do certificado A1 nunca aparece em log, resposta de API ou texto puro em disco (cifrada com Fernet, chave derivada de SECRET_KEY).
-- Todo XML enviado a prefeitura valida ANTES contra os XSDs oficiais em `backend/schemas/` (v02-5). Se a prefeitura publicar XSD novo, substituir a pasta inteira e rodar a suite.
+- Todo XML enviado valida ANTES contra os XSDs oficiais: `backend/schemas/` (v02-5, prefeitura) e `backend/schemas/nacional/1.01/` (Sistema Nacional). Se publicarem XSD novo, substituir a pasta inteira e rodar a suite.
 - Emissao real so com `modo_teste` desligado; o metodo de teste e `TesteEnvioLoteRPS` (recebe lote com 1 RPS).
 - Numeracao de RPS nunca regride: o contador em config so avanca. Numero queimado por falha de rede e aceitavel (prefeitura tolera gaps).
 
@@ -54,6 +54,27 @@ entao a checagem e pelo magic number `%PDF`.
 - O xmldsig da prefeitura exige `Transforms` e `KeyInfo/X509Data/X509Certificate` na Signature (schema customizado).
 - Consulta por periodo: metodo `ConsultaNFeEmitidas` com `PedidoConsultaNFePeriodo_v02.xsd`.
 
+## Ambiente nacional (Sistema Nacional NFS-e)
+
+ME/EPP do Simples emitem so no Sistema Nacional para competencias a partir de 01/11/2026 (Resolucao CGSN 191/2026); o webservice de SP recusa com o erro 1647. `ambiente` na config escolhe `municipal` ou `nacional`; cada nota guarda o ambiente em que saiu (`municipal`, `nacional`, `nacional_homologacao`) e cancela sempre nele. Codigo em `backend/app/nfse/nacional/`, spec em `docs/superpowers/specs/2026-11-14-nfse-nacional-design.md`.
+
+Fatos que custaram caro descobrir:
+
+- API Sefin: `POST /nfse` com `{"dpsXmlGZipB64"}` (XML em GZip + Base64), mTLS com o A1. Producao `https://sefin.nfse.gov.br/SefinNacional`, producao restrita `https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional`. O Swagger oficial devolve 403 sem certificado cliente; os nomes dos campos foram conferidos num espelho publico e no manual.
+- c14n de subarvore do lxml emite `xmlns=""` espurio em filhos da Signature. A assinatura so bate com um verificador padrao canonicalizando o elemento reparseado como documento isolado (`nacional/assinatura.py::_c14n`). O teste com `signxml` pega regressao.
+- XSD oficial `TSSerieDPS` usa `^...$`, que em regex de XSD e caractere literal: o libxml2 recusa toda serie. A copia local remove os dois caracteres (ver `backend/schemas/nacional/LEIAME.md`). Reaplicar ao trocar a pasta.
+- Sem prefixo de namespace no XML (E1228): DPS e Signature com namespace padrao.
+- tpEmit 1 (prestador) nao leva `xNome` nem `end` do prestador (E0121, E0128). IM so vai se houver registro complementar no CNC do municipio (`nacional.informar_im`).
+- ME/EPP apurando pelo Simples sem retencao: sem `pAliq` (E0625, E0631) e sem `indTotTrib` (E0712). O total aproximado vai em `pTotTribSN`, que e configuracao de cada instalacao (`nacional.p_tot_trib_sn`); vazio recusa a emissao antes de enviar.
+- Serie da DPS e numerica, 1 a 49999 para aplicativo proprio (E0010). Contadores proprios, um para producao e outro para homologacao, que so avancam.
+- Falha de rede no envio: a nota fica `erro` com serie e numero da DPS. Nova tentativa da mesma `ref_externa` reaproveita a identificacao e consulta `GET /dps/{id}` antes de reenviar; E0014 (DPS ja convertida) tambem dispara a recuperacao. Assim nao sai nota duplicada.
+- Modo teste no nacional emite de verdade na producao restrita (sem valor fiscal) e grava a nota com ref `homologacao:<ref>`, porque `ref_externa` e unica.
+- Cancelamento e evento `e101101` com Id `PRE` + chave + `101101`, motivo 1, 2 ou 9 e texto de 15 a 255 caracteres. O XML do evento fica em `xml_evento`; `xml_retorno` guarda a NFS-e autorizada.
+- API de DANFSe suspensa em 03/08/2026 (NT 008): `pdf_url` e o link da Consulta Publica (`https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=`).
+- Algoritmo da assinatura em constante (`ALGORITMO_PADRAO = "sha256"`). Se a producao restrita recusar com E0714, a troca para SHA-1 e de uma linha.
+- Grupo IBS/CBS ainda nao enviado: para o Simples ele vale a partir de 01/01/2027.
+- Colunas novas entram no banco existente pelo `init_db` (`ALTER TABLE ADD COLUMN` para o que faltar), sem framework de migracao.
+
 ## Comandos
 
 ```bash
@@ -79,5 +100,6 @@ backend/.venv/bin/python scripts/teste_envio_real.py
 ## Docs
 
 - Spec: `docs/superpowers/specs/2026-07-30-nfse-design.md`
+- Spec do ambiente nacional: `docs/superpowers/specs/2026-11-14-nfse-nacional-design.md`
 - Plano: `docs/superpowers/plans/2026-07-30-nfse.md`
 - Deploy: `docs/deploy-railway.md`

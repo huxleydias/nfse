@@ -36,6 +36,28 @@ def get_session():
 def init_db():
     from app.models import api_key, config_store, nota  # noqa: F401
     Base.metadata.create_all(get_engine())
+    _adicionar_colunas_novas(get_engine())
+
+
+def _adicionar_colunas_novas(engine) -> None:
+    """create_all nao altera tabela existente: coluna nova em modelo antigo
+    entra aqui com ALTER TABLE ADD COLUMN. Nada e apagado ou reescrito, e o
+    server_default preenche as linhas que ja existiam."""
+    with engine.begin() as conn:
+        for tabela in Base.metadata.sorted_tables:
+            existentes = {
+                linha[1]
+                for linha in conn.exec_driver_sql(f"PRAGMA table_info({tabela.name})")
+            }
+            for coluna in tabela.columns:
+                if coluna.name in existentes:
+                    continue
+                tipo = coluna.type.compile(dialect=engine.dialect)
+                ddl = f"ALTER TABLE {tabela.name} ADD COLUMN {coluna.name} {tipo}"
+                padrao = coluna.server_default
+                if padrao is not None:
+                    ddl += f" NOT NULL DEFAULT '{padrao.arg}'"
+                conn.exec_driver_sql(ddl)
 
 
 def reset_engine_para_testes():

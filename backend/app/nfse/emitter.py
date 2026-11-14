@@ -1,10 +1,15 @@
-"""Orquestrador: valida, monta, assina, valida XSD, envia e persiste."""
+"""Orquestrador: valida, monta, assina, valida XSD, envia e persiste.
+
+Porta de entrada unica da API REST e do MCP. Com `ambiente = nacional` na
+configuracao, emissao e cancelamento delegam ao Sistema Nacional
+(app.nfse.nacional.emissor); notas antigas seguem o ambiente em que sairam.
+"""
 import json
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.config_store import alocar_numero_rps, get_config
+from app.models.config_store import alocar_numero_rps, ambiente_config, get_config
 from app.models.nota import Nota
 
 from .parser import (
@@ -59,10 +64,19 @@ class RefEmAndamentoError(Exception):
 
 
 class PrefeituraRecusouError(Exception):
-    def __init__(self, erros: list[dict], nota: Nota | None = None):
+    """Recusa de negocio do emissor oficial. `origem` diz quem recusou:
+    "prefeitura" (webservice municipal) ou "nacional" (Sefin Nacional)."""
+
+    def __init__(self, erros: list[dict], nota: Nota | None = None,
+                 origem: str = "prefeitura"):
         self.erros = erros
         self.nota = nota
+        self.origem = origem
         super().__init__("; ".join(f"[{e['codigo']}] {e['descricao']}" for e in erros))
+
+    @property
+    def emissor(self) -> str:
+        return "Sistema Nacional" if self.origem == "nacional" else "Prefeitura"
 
 
 class EnderecoPayload(BaseModel):
@@ -105,6 +119,17 @@ class EmissaoPayload(BaseModel):
     deducoes: float = 0.0
     valores_retencao: dict = Field(default_factory=dict)
     fiscal: dict = Field(default_factory=dict)
+    # Ambiente nacional: data de competencia (dCompet). Padrao: hoje em
+    # Brasilia. No municipal e ignorada.
+    competencia: date | None = None
+
+    @field_validator("competencia")
+    @classmethod
+    def _competencia_nao_futura(cls, v):
+        hoje = datetime.now(timezone(timedelta(hours=-3))).date()
+        if v is not None and v > hoje:
+            raise ValueError("Competencia nao pode ser futura")
+        return v
 
 
 def _montar_dados_rps(cfg: dict, payload: EmissaoPayload, numero_rps: int) -> dict:
@@ -164,6 +189,11 @@ def emitir(payload: EmissaoPayload, session, client: SoapClient,
            cert, private_key) -> dict:
     """Fluxo completo de emissao. Retorna dict com a nota ou resultado de teste."""
     cfg = get_config(session)
+    if ambiente_config(cfg) == "nacional":
+        from .nacional.emissor import emitir_nacional
+
+        return emitir_nacional(payload, session, cfg, cert, private_key)
+
     modo_teste = bool(cfg.get("modo_teste", True))
 
     if payload.ref_externa:
@@ -269,8 +299,17 @@ def emitir(payload: EmissaoPayload, session, client: SoapClient,
     raise PrefeituraRecusouError(retorno["erros"], nota)
 
 
-def cancelar(nota: Nota, session, client: SoapClient, cert, private_key) -> Nota:
+def cancelar(nota: Nota, session, client: SoapClient, cert, private_key,
+             motivo_codigo: int = 1, motivo: str | None = None) -> Nota:
+    """Cancela no ambiente em que a nota saiu. Motivo so vale no nacional."""
     cfg = get_config(session)
+    if (nota.ambiente or "municipal") != "municipal":
+        from .nacional.emissor import cancelar_nacional
+
+        return cancelar_nacional(
+            nota, session, cfg, cert, private_key, motivo_codigo, motivo
+        )
+
     prestador = cfg["prestador"]
     if not nota.numero_nfse:
         raise EmissaoInvalidaError("Nota sem numero de NFS-e, nao ha o que cancelar")
@@ -299,6 +338,8 @@ def sincronizar(dt_inicio: date, dt_fim: date, session, client: SoapClient,
                 cert, private_key) -> dict:
     """ConsultaNFeEmitidas no periodo e upsert das notas no banco local."""
     cfg = get_config(session)
+    if ambiente_config(cfg) == "nacional":
+        raise EmissaoInvalidaError("Sincronizacao disponivel so no ambiente municipal")
     prestador = cfg["prestador"]
     layout = layout_config(cfg)
     root = build_pedido_consulta_periodo(prestador, dt_inicio, dt_fim, versao=layout)

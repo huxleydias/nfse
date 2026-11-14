@@ -26,7 +26,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { api, ApiError, type Nota } from "@/lib/api"
+import { Textarea } from "@/components/ui/textarea"
+import { api, ApiError, ehNacional, type Nota } from "@/lib/api"
+
+const MOTIVOS_CANCELAMENTO = [
+  { codigo: "1", label: "Erro na emissao" },
+  { codigo: "2", label: "Servico nao prestado" },
+  { codigo: "9", label: "Outros" },
+]
+const MOTIVO_PADRAO = "Erro na emissao da nota"
 
 const BADGES: Record<string, { label: string; classe: string }> = {
   autorizada: { label: "Autorizada", classe: "bg-green-100 text-green-800" },
@@ -50,7 +58,15 @@ export default function Notas() {
   const [fim, setFim] = useState("")
   const [detalhe, setDetalhe] = useState<Nota | null>(null)
   const [cancelando, setCancelando] = useState<Nota | null>(null)
+  const [motivoCodigo, setMotivoCodigo] = useState("1")
+  const [motivoTexto, setMotivoTexto] = useState(MOTIVO_PADRAO)
   const [sincronizando, setSincronizando] = useState(false)
+
+  function pedirCancelamento(nota: Nota) {
+    setMotivoCodigo("1")
+    setMotivoTexto(MOTIVO_PADRAO)
+    setCancelando(nota)
+  }
 
   const carregar = useCallback(async () => {
     try {
@@ -89,8 +105,17 @@ export default function Notas() {
 
   async function confirmarCancelamento() {
     if (!cancelando) return
+    if (ehNacional(cancelando) && motivoTexto.trim().length < 15) {
+      toast.error("Descreva o motivo com pelo menos 15 caracteres")
+      return
+    }
     try {
-      await api.cancelarNota(cancelando.id)
+      await api.cancelarNota(
+        cancelando.id,
+        ehNacional(cancelando)
+          ? { codigo: Number(motivoCodigo), texto: motivoTexto.trim() }
+          : undefined,
+      )
       toast.success(`Nota ${cancelando.numero_nfse} cancelada`)
       setCancelando(null)
       carregar()
@@ -177,13 +202,35 @@ export default function Notas() {
                 <TableCell>{n.numero_nfse ?? "..."}</TableCell>
                 <TableCell>{n.tomador_nome ?? n.tomador_doc}</TableCell>
                 <TableCell>{formatarValor(n.valor)}</TableCell>
-                <TableCell>
+                <TableCell className="space-x-1">
                   <Badge variant="outline" className={badge.classe}>
                     {badge.label}
                   </Badge>
+                  {n.ambiente === "nacional_homologacao" && (
+                    <Badge variant="outline" className="bg-amber-100 text-amber-800">
+                      Teste
+                    </Badge>
+                  )}
+                  {n.ambiente === "nacional" && (
+                    <Badge variant="outline" title="Emitida no Sistema Nacional">
+                      Nacional
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="space-x-1 text-right">
-                  {n.numero_nfse && n.codigo_verificacao && (
+                  {ehNacional(n) && n.pdf_url && (
+                    <Button variant="ghost" size="sm" asChild>
+                      <a
+                        href={n.pdf_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Abrir na Consulta Publica do Sistema Nacional"
+                      >
+                        Ver nota
+                      </a>
+                    </Button>
+                  )}
+                  {!ehNacional(n) && n.numero_nfse && n.codigo_verificacao && (
                     <>
                       <Button variant="ghost" size="sm" asChild>
                         <a
@@ -214,7 +261,7 @@ export default function Notas() {
                       variant="ghost"
                       size="sm"
                       className="text-red-600 hover:text-red-700"
-                      onClick={() => setCancelando(n)}
+                      onClick={() => pedirCancelamento(n)}
                     >
                       Cancelar
                     </Button>
@@ -232,11 +279,37 @@ export default function Notas() {
           <DialogHeader>
             <DialogTitle>Cancelar NFS-e {cancelando?.numero_nfse}</DialogTitle>
             <DialogDescription>
-              O cancelamento e feito na prefeitura e nao pode ser desfeito. Tomador:{" "}
-              {cancelando?.tomador_nome}, valor{" "}
+              O cancelamento e feito{" "}
+              {cancelando && ehNacional(cancelando) ? "no Sistema Nacional" : "na prefeitura"} e
+              nao pode ser desfeito. Tomador: {cancelando?.tomador_nome}, valor{" "}
               {cancelando ? formatarValor(cancelando.valor) : ""}.
             </DialogDescription>
           </DialogHeader>
+          {cancelando && ehNacional(cancelando) && (
+            <div className="space-y-3">
+              <Select value={motivoCodigo} onValueChange={setMotivoCodigo}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_CANCELAMENTO.map((m) => (
+                    <SelectItem key={m.codigo} value={m.codigo}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Textarea
+                value={motivoTexto}
+                onChange={(e) => setMotivoTexto(e.target.value)}
+                maxLength={255}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                Motivo de 15 a 255 caracteres, exigido pelo Sistema Nacional
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCancelando(null)}>
               Voltar
@@ -262,9 +335,20 @@ export default function Notas() {
               {detalhe?.codigo_verificacao
                 ? `, verificacao ${detalhe.codigo_verificacao}`
                 : ""}
+              {detalhe?.chave_acesso ? `, chave de acesso ${detalhe.chave_acesso}` : ""}
+              {detalhe?.competencia ? `, competencia ${detalhe.competencia}` : ""}
             </DialogDescription>
           </DialogHeader>
-          {detalhe?.numero_nfse && detalhe?.codigo_verificacao && (
+          {detalhe && ehNacional(detalhe) && detalhe.pdf_url && (
+            <div className="flex gap-2">
+              <Button size="sm" asChild>
+                <a href={detalhe.pdf_url} target="_blank" rel="noreferrer">
+                  Abrir nota oficial
+                </a>
+              </Button>
+            </div>
+          )}
+          {detalhe && !ehNacional(detalhe) && detalhe.numero_nfse && detalhe.codigo_verificacao && (
             <>
               <div className="flex gap-2">
                 <Button size="sm" asChild>

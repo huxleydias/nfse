@@ -26,8 +26,20 @@ class Nota(Base):
     codigo_servico: Mapped[str | None] = mapped_column(String(5), nullable=True)
     # autorizada | cancelada | erro | processando
     status: Mapped[str] = mapped_column(String(20), default="processando")
+    # municipal | nacional | nacional_homologacao
+    ambiente: Mapped[str] = mapped_column(
+        String(25), default="municipal", server_default="municipal"
+    )
+    # Ambiente nacional: chave de acesso de 50 digitos e identificacao da DPS
+    chave_acesso: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    serie_dps: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    numero_dps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    competencia: Mapped[str | None] = mapped_column(String(10), nullable=True)
     xml_enviado: Mapped[str | None] = mapped_column(Text, nullable=True)
     xml_retorno: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Nacional: XML do evento (cancelamento). Fica separado para o XML da
+    # NFS-e autorizada continuar guardado em xml_retorno.
+    xml_evento: Mapped[str | None] = mapped_column(Text, nullable=True)
     erros_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     criada_em: Mapped[str] = mapped_column(String(40), default=_agora)
     atualizada_em: Mapped[str] = mapped_column(String(40), default=_agora, onupdate=_agora)
@@ -45,6 +57,11 @@ class Nota(Base):
             "valor": self.valor,
             "codigo_servico": self.codigo_servico,
             "status": self.status,
+            "ambiente": self.ambiente,
+            "chave_acesso": self.chave_acesso,
+            "serie_dps": self.serie_dps,
+            "numero_dps": self.numero_dps,
+            "competencia": self.competencia,
             "erros_json": self.erros_json,
             "criada_em": self.criada_em,
             "atualizada_em": self.atualizada_em,
@@ -52,4 +69,5 @@ class Nota(Base):
         if com_xml:
             d["xml_enviado"] = self.xml_enviado
             d["xml_retorno"] = self.xml_retorno
+            d["xml_evento"] = self.xml_evento
         return d

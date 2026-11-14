@@ -40,11 +40,25 @@ export interface Nota {
   valor: number
   codigo_servico: string | null
   status: string
+  /** municipal | nacional | nacional_homologacao */
+  ambiente: string
+  /** Nacional: chave de acesso de 50 digitos */
+  chave_acesso: string | null
+  serie_dps: string | null
+  numero_dps: number | null
+  competencia: string | null
+  /** Nacional: link oficial da Consulta Publica */
+  pdf_url?: string
   erros_json: string | null
   criada_em: string
   atualizada_em: string
   xml_enviado?: string
   xml_retorno?: string
+  xml_evento?: string
+}
+
+export function ehNacional(nota: Pick<Nota, "ambiente">) {
+  return nota.ambiente === "nacional" || nota.ambiente === "nacional_homologacao"
 }
 
 export interface ServicoConfig {
@@ -58,6 +72,22 @@ export interface ServicoConfig {
   ind_final: number
   ind_dest: number
   c_loc_prestacao?: string
+  /** Nacional: codigo de tributacao nacional, 6 digitos */
+  c_trib_nac?: string
+  /** Nacional: NBS, 9 digitos, opcional */
+  c_nbs?: string
+}
+
+export interface NacionalConfig {
+  serie_dps: string
+  proximo_numero_dps: number
+  proximo_numero_dps_homologacao: number
+  c_loc_emi: string
+  op_simp_nac: number
+  reg_ap_trib_sn: number
+  reg_esp_trib: number
+  p_tot_trib_sn: number | null
+  informar_im: boolean
 }
 
 export interface Config {
@@ -73,6 +103,8 @@ export interface Config {
   modo_teste: boolean
   tributacao: string
   layout: number
+  ambiente: "municipal" | "nacional"
+  nacional: NacionalConfig
 }
 
 export interface CertificadoMeta {
@@ -111,15 +143,31 @@ export const api = {
   },
   detalheNota: (id: number) => request<{ nota: Nota }>(`/api/notas/${id}`),
   emitirNota: (payload: unknown) =>
-    request<{ teste: boolean; nota?: Nota; resultado?: unknown }>("/api/notas", {
+    request<{
+      teste: boolean
+      nota?: Nota
+      resultado?: unknown
+      alertas?: { codigo: string; descricao: string }[]
+    }>("/api/notas", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  /** PDF oficial da prefeitura. inline para visualizar, download para baixar. */
+  /** PDF oficial da prefeitura. inline para visualizar, download para baixar.
+   * Nota nacional: use nota.pdf_url (Consulta Publica). */
   urlPdf: (id: number, download = false) =>
     `/api/notas/${id}/pdf${download ? "?download=true" : ""}`,
-  cancelarNota: (id: number) =>
-    request<{ nota: Nota }>(`/api/notas/${id}`, { method: "DELETE" }),
+  /** motivo_codigo e motivo so valem para nota nacional */
+  cancelarNota: (id: number, motivo?: { codigo: number; texto: string }) => {
+    const params = new URLSearchParams()
+    if (motivo) {
+      params.set("motivo_codigo", String(motivo.codigo))
+      params.set("motivo", motivo.texto)
+    }
+    const qs = params.toString()
+    return request<{ nota: Nota }>(`/api/notas/${id}${qs ? `?${qs}` : ""}`, {
+      method: "DELETE",
+    })
+  },
   sincronizar: (inicio: string, fim: string) =>
     request<{ novas: number; atualizadas: number; total_remoto: number }>(
       "/api/notas/sync",
