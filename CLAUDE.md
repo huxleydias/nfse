@@ -85,6 +85,7 @@ Fatos que custaram caro descobrir:
 - API de DANFSe suspensa em 03/08/2026 (NT 008): `pdf_url` e o link da Consulta Publica (`https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=`).
 - Algoritmo da assinatura em constante (`ALGORITMO_PADRAO = "sha256"`). Se a producao restrita recusar com E0714, a troca para SHA-1 e de uma linha.
 - Grupo IBS/CBS ainda nao enviado: para o Simples ele vale a partir de 01/01/2027.
+- IM do prestador na DPS: tem que ser igual a do CNC (E0116 quando difere). `nacional.inscricao_municipal` guarda esse valor (Sao Paulo: CCM com zeros a esquerda ate 15 digitos, como aparece no Indicador Municipal do DANFSe); vazio usa `prestador.inscricao_municipal`, que continua servindo ao municipal.
 - Dois leiautes ate 30/11/2026: producao na NT 004, producao restrita na NT 009 (finNFSe obrigatorio em infDPS). A producao passa para a NT 009 em 01/12/2026 (`INICIO_NT009_PRODUCAO`); se o governo adiar, mudar a constante.
 - Colunas novas entram no banco existente pelo `init_db` (`ALTER TABLE ADD COLUMN` para o que faltar), sem framework de migracao.
 

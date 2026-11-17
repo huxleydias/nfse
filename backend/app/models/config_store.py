@@ -54,6 +54,10 @@ CONFIG_DEFAULT = {
         # Informar a inscricao municipal na DPS. So vale se o prestador tiver
         # registro complementar no CNC do municipio emissor.
         "informar_im": True,
+        # IM exatamente como esta no CNC (o Indicador Municipal do DANFSe).
+        # Vazio usa a inscricao do prestador. Sao Paulo carrega o CCM com
+        # zeros a esquerda ate 15 digitos, diferente do CCM do webservice.
+        "inscricao_municipal": "",
     },
 }
 

@@ -129,7 +129,7 @@ def build_dps(dados: dict) -> etree._Element:
     prest = _el(inf, "prest")
     _documento(prest, prestador["cnpj"])
     if prestador.get("im"):
-        _el(prest, "IM", so_digitos(prestador["im"]))
+        _el(prest, "IM", str(prestador["im"]).strip())
     reg = _el(prest, "regTrib")
     op_simp_nac = str(dados["reg_trib"]["op_simp_nac"])
     _el(reg, "opSimpNac", op_simp_nac)

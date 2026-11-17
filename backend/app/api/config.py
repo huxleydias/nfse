@@ -82,6 +82,10 @@ def _validar_nacional(novos: dict) -> None:
             erros.append("nacional.p_tot_trib_sn deve ser percentual de 0 a 99,99")
     if "informar_im" in nac and not isinstance(nac["informar_im"], bool):
         erros.append("nacional.informar_im deve ser true ou false")
+    im = nac.get("inscricao_municipal")
+    if im not in (None, ""):
+        if not isinstance(im, str) or len(im.strip()) > 15 or any(c.isspace() for c in im.strip()):
+            erros.append("nacional.inscricao_municipal deve ter ate 15 caracteres, sem espacos")
     if erros:
         raise HTTPException(status_code=422, detail=erros)
 

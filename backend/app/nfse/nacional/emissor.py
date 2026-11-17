@@ -102,6 +102,12 @@ def _validar_config(cfg: dict, payload: EmissaoPayload) -> dict:
     return servico
 
 
+def _im_prestador(cfg) -> str | None:
+    """IM como o CNC conhece: a do bloco nacional, se houver; senao o CCM."""
+    nacional = (cfg["nacional"].get("inscricao_municipal") or "").strip()
+    return nacional or so_digitos(cfg["prestador"].get("inscricao_municipal") or "") or None
+
+
 def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao, leiaute) -> dict:
     nac = cfg["nacional"]
     prestador = cfg["prestador"]
@@ -121,7 +127,7 @@ def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao, l
         "c_loc_emi": nac["c_loc_emi"],
         "prestador": {
             "cnpj": prestador["cnpj"],
-            "im": prestador.get("inscricao_municipal") if nac.get("informar_im") else None,
+            "im": _im_prestador(cfg) if nac.get("informar_im") else None,
         },
         "reg_trib": {
             "op_simp_nac": nac["op_simp_nac"],
