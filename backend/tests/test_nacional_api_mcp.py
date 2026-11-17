@@ -60,6 +60,11 @@ class TestConfigNacional:
         assert nac["informar_im"] is False
         assert nac["p_tot_trib_sn"] == 6
 
+    def test_im_nacional_salva(self, api_nacional):
+        api_nacional.put("/api/config", json={"nacional": {"inscricao_municipal": "000000012345678"}})
+        nac = api_nacional.get("/api/config").json()["nacional"]
+        assert nac["inscricao_municipal"] == "000000012345678"
+
     def test_contador_nao_regride(self, api_nacional):
         api_nacional.put("/api/config", json={"nacional": {"proximo_numero_dps": 50}})
         api_nacional.put("/api/config", json={"nacional": {"proximo_numero_dps": 3}})
@@ -71,6 +76,8 @@ class TestConfigNacional:
         {"nacional": {"p_tot_trib_sn": 100}},
         {"nacional": {"c_loc_emi": "35503"}},
         {"nacional": {"informar_im": "sim"}},
+        {"nacional": {"inscricao_municipal": "0000000123456789"}},
+        {"nacional": {"inscricao_municipal": "123 456"}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_trib_nac": "8021"}}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_nbs": "12"}}},
     ])

@@ -180,6 +180,18 @@ class TestEmissao:
         emitir(payload(), session, None, cert, key)
         assert _dps(sefin["fake"].enviadas[0]).find(f".//{_q('IM')}") is None
 
+    def test_im_do_cadastro_nacional_tem_prioridade(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
+        # O CNC guarda a IM como a prefeitura carregou (SP: 15 digitos com
+        # zeros a esquerda), que pode diferir do CCM usado no municipal.
+        cert, key = cert_e_chave
+        cfg = get_config(session)
+        cfg["nacional"]["inscricao_municipal"] = "000000012345678"
+        save_config(session, cfg)
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        assert _dps(sefin["fake"].enviadas[0]).findtext(f".//{_q('IM')}") == "000000012345678"
+        assert get_config(session)["prestador"]["inscricao_municipal"] == "12345678"
+
     def test_mesma_ref_autorizada_e_idempotente(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
         cert, key = cert_e_chave
         sefin["fake"].emitir_efeitos = [resposta_autorizada()]

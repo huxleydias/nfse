@@ -265,6 +265,21 @@ export default function Config() {
               />
               <p className="text-xs text-muted-foreground">7 digitos. Sao Paulo e 3550308</p>
             </div>
+            <div className="space-y-2">
+              <Label>Inscricao municipal no Sistema Nacional</Label>
+              <Input
+                className="tabular-nums"
+                placeholder={cfg.prestador.inscricao_municipal}
+                maxLength={15}
+                value={cfg.nacional.inscricao_municipal ?? ""}
+                onChange={(e) => setNacional("inscricao_municipal", e.target.value.replace(/\s/g, ""))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Copie o Indicador Municipal do prestador de uma nota emitida no Emissor Nacional.
+                Em Sao Paulo e o CCM com zeros a esquerda ate 15 digitos. Vazio usa a inscricao do
+                prestador.
+              </p>
+            </div>
             <div className="flex items-center gap-2 pt-5">
               <Switch
                 checked={cfg.nacional.informar_im}

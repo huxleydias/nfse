@@ -88,6 +88,7 @@ export interface NacionalConfig {
   reg_esp_trib: number
   p_tot_trib_sn: number | null
   informar_im: boolean
+  inscricao_municipal: string
 }
 
 export interface Config {

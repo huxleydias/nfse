@@ -122,6 +122,7 @@ def consultar_configuracao() -> dict:
                 "reg_ap_trib_sn": nacional.get("reg_ap_trib_sn"),
                 "p_tot_trib_sn": nacional.get("p_tot_trib_sn"),
                 "informar_im": nacional.get("informar_im"),
+                "inscricao_municipal": nacional.get("inscricao_municipal") or None,
             },
             "servicos": [
                 {
