@@ -52,6 +52,7 @@ export default function Config() {
   const [novoCodigo, setNovoCodigo] = useState("")
   // Texto do percentual enquanto digita: o numero sozinho perderia "6," no meio
   const [pTotTexto, setPTotTexto] = useState<string | null>(null)
+  const [pTotServicoTexto, setPTotServicoTexto] = useState<Record<string, string>>({})
 
   useEffect(() => {
     api.obterConfig().then(setCfg)
@@ -207,8 +208,9 @@ export default function Config() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Obrigatorio para ME/EPP (campo pTotTribSN). Confirme com o contador. Sem
-                valor, a emissao e recusada antes de enviar.
+                Aliquota nominal da faixa do Simples (campo pTotTribSN), usada nos servicos sem
+                percentual proprio. Confirme com o contador. Sem valor em nenhum dos dois, a
+                emissao e recusada antes de enviar.
               </p>
             </div>
             <div className="space-y-2">
@@ -565,6 +567,48 @@ export default function Config() {
                   />
                   <p className="text-xs text-muted-foreground">
                     9 digitos. Vazio fica de fora da DPS
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Percentual de tributos do Simples (nacional, opcional)</Label>
+                  <div className="relative">
+                    <Input
+                      className="pr-8 text-right tabular-nums"
+                      inputMode="decimal"
+                      value={
+                        pTotServicoTexto[codigo] ??
+                        (s.p_tot_trib_sn == null ? "" : String(s.p_tot_trib_sn).replace(".", ","))
+                      }
+                      placeholder={
+                        cfg.nacional.p_tot_trib_sn == null
+                          ? "0,00"
+                          : String(cfg.nacional.p_tot_trib_sn).replace(".", ",")
+                      }
+                      onChange={(e) => {
+                        const texto = e.target.value.replace(/[^\d,]/g, "")
+                        setPTotServicoTexto((t) => ({ ...t, [codigo]: texto }))
+                        const numero = Number(texto.replace(",", "."))
+                        setServico(
+                          codigo,
+                          "p_tot_trib_sn",
+                          texto === "" || Number.isNaN(numero) ? null : numero,
+                        )
+                      }}
+                      onBlur={() =>
+                        setPTotServicoTexto((t) => {
+                          const resto = { ...t }
+                          delete resto[codigo]
+                          return resto
+                        })
+                      }
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Aliquota nominal da faixa do Simples no anexo deste servico. Vazio usa o
+                    percentual geral
                   </p>
                 </div>
               </div>

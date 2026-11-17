@@ -39,6 +39,7 @@ from app.nfse.emitter import (
     sincronizar,
 )
 from app.nfse.nacional import AMBIENTE_HOMOLOGACAO, url_consulta_publica
+from app.nfse.nacional.emissor import percentual_sn
 from app.nfse.parser import RespostaInvalidaError
 from app.nfse.pdf import montar_url_pdf
 from app.nfse.signer import CertificadoError
@@ -132,6 +133,8 @@ def consultar_configuracao() -> dict:
                     "codigo_tributacao_nacional": servico.get("c_trib_nac"),
                     "codigo_tributacao_municipal": servico.get("c_trib_mun") or None,
                     "nbs": servico.get("c_nbs") or None,
+                    # Percentual que vai no pTotTribSN: o do servico ou o geral
+                    "percentual_tributos_sn": percentual_sn(cfg, servico),
                 }
                 for codigo, servico in cfg.get("servicos", {}).items()
             ],

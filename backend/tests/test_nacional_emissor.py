@@ -281,6 +281,33 @@ class TestEmissao:
         assert r["idempotente"] is True
         assert r["nota"].status == "autorizada"
 
+    def test_percentual_do_servico_tem_prioridade(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
+        # Cursos (8.02) so entram no Anexo III; consultoria (1.06) depende do
+        # Fator R. Cada servico pode ter o proprio percentual nominal.
+        cert, key = cert_e_chave
+        cfg = get_config(session)
+        cfg["servicos"]["05762"]["p_tot_trib_sn"] = 11.2
+        save_config(session, cfg)
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        assert _dps(sefin["fake"].enviadas[0]).findtext(f".//{_q('pTotTribSN')}") == "11.20"
+
+    def test_percentual_so_no_servico_basta(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
+        cert, key = cert_e_chave
+        cfg = get_config(session)
+        cfg["nacional"]["p_tot_trib_sn"] = None
+        cfg["servicos"]["05762"]["p_tot_trib_sn"] = 6
+        save_config(session, cfg)
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        assert _dps(sefin["fake"].enviadas[0]).findtext(f".//{_q('pTotTribSN')}") == "6.00"
+
+    def test_sem_percentual_do_servico_usa_o_geral(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
+        cert, key = cert_e_chave
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        assert _dps(sefin["fake"].enviadas[0]).findtext(f".//{_q('pTotTribSN')}") == "6.00"
+
     def test_config_incompleta_nao_reserva_numero(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
         cert, key = cert_e_chave
         cfg = get_config(session)

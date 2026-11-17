@@ -78,6 +78,8 @@ export interface ServicoConfig {
   c_trib_mun?: string
   /** Nacional: NBS, 9 digitos, opcional */
   c_nbs?: string
+  /** Nacional: aliquota nominal do Simples deste servico, em %. Vazio usa a geral */
+  p_tot_trib_sn?: number | null
 }
 
 export interface NacionalConfig {

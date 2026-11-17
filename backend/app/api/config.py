@@ -37,6 +37,14 @@ def _validar_servicos(servicos: dict) -> None:
         c_nbs = s.get("c_nbs")
         if c_nbs not in (None, "") and not (len(so_digitos(c_nbs)) == 9 == len(str(c_nbs))):
             erros.append(f"Servico {codigo}: c_nbs deve ter 9 digitos")
+        p_tot = s.get("p_tot_trib_sn")
+        if p_tot not in (None, ""):
+            try:
+                p = float(p_tot)
+            except (TypeError, ValueError):
+                p = -1
+            if not 0 <= p < 100:
+                erros.append(f"Servico {codigo}: p_tot_trib_sn deve ser percentual de 0 a 99,99")
         c_trib_mun = s.get("c_trib_mun")
         if c_trib_mun not in (None, "") and not (
             len(so_digitos(c_trib_mun)) == 3 == len(str(c_trib_mun)) and str(c_trib_mun) != "000"
