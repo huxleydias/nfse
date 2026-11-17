@@ -74,10 +74,11 @@ _BLOCOS_ANINHADOS = ("nacional",)
 #   "nbs": "000000000", "c_class_trib": "000001", "c_ind_op": "000000",
 #   "fin_nfse": 0, "ind_final": 1, "ind_dest": 0,
 #   "c_loc_prestacao": "3550308",
-#   "c_trib_nac": "080201", "c_nbs": ""
+#   "c_trib_nac": "080201", "c_trib_mun": "", "c_nbs": ""
 # }
-# c_trib_nac (codigo de tributacao nacional, 6 digitos) e c_nbs (9 digitos,
-# opcional) so sao usados no ambiente nacional.
+# c_trib_nac (codigo de tributacao nacional, 6 digitos), c_trib_mun (desdobro
+# municipal, 3 digitos, opcional) e c_nbs (9 digitos, opcional) so sao usados
+# no ambiente nacional.
 
 
 def get_config(session) -> dict:

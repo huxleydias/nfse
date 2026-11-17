@@ -42,6 +42,7 @@ const SERVICO_VAZIO: ServicoConfig = {
   ind_dest: 0,
   c_loc_prestacao: "3550308",
   c_trib_nac: "",
+  c_trib_mun: "",
   c_nbs: "",
 }
 
@@ -531,6 +532,26 @@ export default function Config() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Ambiente nacional, 6 digitos (Anexo I). Instrucao e treinamento e 080201
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Codigo de tributacao municipal (nacional, opcional)</Label>
+                  <Input
+                    className="tabular-nums"
+                    inputMode="numeric"
+                    value={s.c_trib_mun ?? ""}
+                    placeholder="001"
+                    onChange={(e) =>
+                      setServico(codigo, "c_trib_mun", mascaraCodigo(e.target.value, 3))
+                    }
+                    onBlur={(e) =>
+                      e.target.value &&
+                      setServico(codigo, "c_trib_mun", completarCodigo(e.target.value, 3))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    3 digitos, o que vem depois da barra no DANFSe (01.06.01 / 001). Vazio fica de
+                    fora da DPS
                   </p>
                 </div>
                 <div className="space-y-1">

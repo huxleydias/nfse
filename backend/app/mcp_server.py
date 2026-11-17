@@ -130,6 +130,8 @@ def consultar_configuracao() -> dict:
                     "descricao": servico.get("descricao_padrao", ""),
                     "aliquota_iss": servico.get("aliquota"),
                     "codigo_tributacao_nacional": servico.get("c_trib_nac"),
+                    "codigo_tributacao_municipal": servico.get("c_trib_mun") or None,
+                    "nbs": servico.get("c_nbs") or None,
                 }
                 for codigo, servico in cfg.get("servicos", {}).items()
             ],

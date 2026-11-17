@@ -9,7 +9,7 @@ Duas pastas, uma por leiaute. O sistema escolhe a pasta pelo leiaute vigente no 
 
 Para atualizar: substituir a pasta do leiaute inteira pela versão nova, reaplicar o ajuste abaixo quando o padrão antigo voltar e rodar a suíte. Os releases 2 e 3 da NT 009 chegam primeiro na produção restrita: quando o governo publicar um zip novo nessa página, ele substitui `1.01-nt009/`.
 
-Diferença que afeta a DPS montada aqui: na NT 009 o `finNFSe` (0, NFS-e regular) é obrigatório em `infDPS`, logo depois de `tpEmit`. Na NT 004 ele não existe nesse ponto e o XML com ele é recusado (E1235).
+Diferenças que afetam a DPS montada aqui: na NT 009 o `finNFSe` (0, NFS-e regular) é obrigatório em `infDPS`, logo depois de `tpEmit`, e em `cServ` o `xDescServ` vai para o fim (depois de `cNBS` e `cIntContrib`). Na NT 004 não há `finNFSe` nesse ponto e `xDescServ` vem antes de `cNBS`; trocar a ordem dá E1235.
 
 Quando a NT 009 estiver em produção e a pasta `1.01/` não for mais usada, ela pode ser removida junto com `LEIAUTE_NT004`.
 

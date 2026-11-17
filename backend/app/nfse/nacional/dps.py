@@ -8,8 +8,8 @@ Regras do Anexo I que moldam este builder:
   (E0625, E0631).
 - ME/EPP nunca informa indTotTrib (E0712): o total aproximado de tributos vai
   em pTotTribSN.
-- Leiaute NT 009: finNFSe (0, NFS-e regular) logo depois de tpEmit; a NT 004
-  nao tem esse campo em infDPS.
+- Leiaute NT 009: finNFSe (0, NFS-e regular) logo depois de tpEmit, que a NT
+  004 nao tem, e xDescServ no fim de cServ (na NT 004 vem antes de cNBS).
 """
 from datetime import date, datetime
 
@@ -100,7 +100,7 @@ def build_dps(dados: dict) -> etree._Element:
     serie, numero, competencia (date), c_loc_emi, prestador {cnpj, im},
     reg_trib {op_simp_nac, reg_ap_trib_sn, reg_esp_trib},
     tomador {cpf_cnpj, razao_social, email, endereco}, servico
-    {c_loc_prestacao, c_trib_nac, descricao, c_nbs}, valor, p_tot_trib_sn,
+    {c_loc_prestacao, c_trib_nac, c_trib_mun, descricao, c_nbs}, valor, p_tot_trib_sn,
     leiaute (LEIAUTE_NT004 por padrao).
     """
     prestador = dados["prestador"]
@@ -152,9 +152,18 @@ def build_dps(dados: dict) -> etree._Element:
     _el(loc, "cLocPrestacao", so_digitos(servico["c_loc_prestacao"]))
     cserv = _el(serv, "cServ")
     _el(cserv, "cTribNac", so_digitos(servico["c_trib_nac"]))
-    _el(cserv, "xDescServ", servico["descricao"])
-    if so_digitos(servico.get("c_nbs") or ""):
-        _el(cserv, "cNBS", so_digitos(servico["c_nbs"]))
+    if so_digitos(servico.get("c_trib_mun") or ""):
+        _el(cserv, "cTribMun", so_digitos(servico["c_trib_mun"]))
+    nbs = so_digitos(servico.get("c_nbs") or "")
+    # NT 009 move xDescServ para depois de cNBS
+    if dados.get("leiaute", LEIAUTE_NT004) == LEIAUTE_NT009:
+        if nbs:
+            _el(cserv, "cNBS", nbs)
+        _el(cserv, "xDescServ", servico["descricao"])
+    else:
+        _el(cserv, "xDescServ", servico["descricao"])
+        if nbs:
+            _el(cserv, "cNBS", nbs)
 
     valores = _el(inf, "valores")
     vserv = _el(valores, "vServPrest")

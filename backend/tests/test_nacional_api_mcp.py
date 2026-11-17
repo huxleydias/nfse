@@ -80,6 +80,8 @@ class TestConfigNacional:
         {"nacional": {"inscricao_municipal": "123 456"}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_trib_nac": "8021"}}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_nbs": "12"}}},
+        {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "12"}}},
+        {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "000"}}},
     ])
     def test_valores_invalidos(self, api_logada, corpo):
         assert api_logada.put("/api/config", json=corpo).status_code == 422

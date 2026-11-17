@@ -97,6 +97,9 @@ def _validar_config(cfg: dict, payload: EmissaoPayload) -> dict:
         nbs = so_digitos(servico.get("c_nbs") or "")
         if nbs and len(nbs) != 9:
             erros.append(f"Servico {payload.servico}: c_nbs deve ter 9 digitos")
+        mun = so_digitos(servico.get("c_trib_mun") or "")
+        if mun and (len(mun) != 3 or mun == "000"):
+            erros.append(f"Servico {payload.servico}: c_trib_mun deve ter 3 digitos, exceto 000")
     if erros:
         raise EmissaoInvalidaError(erros)
     return servico
@@ -138,6 +141,7 @@ def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao, l
         "servico": {
             "c_loc_prestacao": servico.get("c_loc_prestacao", nac["c_loc_emi"]),
             "c_trib_nac": servico["c_trib_nac"],
+            "c_trib_mun": servico.get("c_trib_mun", ""),
             "descricao": payload.descricao,
             "c_nbs": servico.get("c_nbs", ""),
         },

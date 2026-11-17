@@ -37,6 +37,11 @@ def _validar_servicos(servicos: dict) -> None:
         c_nbs = s.get("c_nbs")
         if c_nbs not in (None, "") and not (len(so_digitos(c_nbs)) == 9 == len(str(c_nbs))):
             erros.append(f"Servico {codigo}: c_nbs deve ter 9 digitos")
+        c_trib_mun = s.get("c_trib_mun")
+        if c_trib_mun not in (None, "") and not (
+            len(so_digitos(c_trib_mun)) == 3 == len(str(c_trib_mun)) and str(c_trib_mun) != "000"
+        ):
+            erros.append(f"Servico {codigo}: c_trib_mun deve ter 3 digitos, exceto 000 (ex.: 001)")
     if erros:
         raise HTTPException(status_code=422, detail=erros)
 
