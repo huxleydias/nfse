@@ -16,7 +16,15 @@ from app.nfse.emitter import (
     emitir,
     sincronizar,
 )
-from app.nfse.nacional import NS, hoje_brasilia
+from app.nfse import nacional
+from app.nfse.nacional import (
+    LEIAUTE_NT009,
+    NS,
+    hoje_brasilia,
+    leiaute_vigente,
+    schema_dps,
+    schema_evento,
+)
 from app.nfse.nacional.cliente import (
     SefinIndisponivelError,
     SefinRecusouError,
@@ -147,7 +155,7 @@ class TestEmissao:
         assert get_config(session)["nacional"]["proximo_numero_dps"] == 2
 
         dps = _dps(sefin["fake"].enviadas[0])
-        validar(dps, "nacional/1.01/DPS_v1.01.xsd")
+        validar(dps, schema_dps(leiaute_vigente(False, hoje_brasilia())))
         assert dps.findtext(f".//{_q('tpAmb')}") == "1"
         assert dps.findtext(f".//{_q('IM')}") == "12345678"
         assert "<DPS" in nota.xml_enviado and "<NFSe" in nota.xml_retorno
@@ -301,6 +309,17 @@ class TestHomologacao:
         assert nac["proximo_numero_dps"] == 1
         assert _dps(sefin["fake"].enviadas[0]).findtext(f".//{_q('tpAmb')}") == "2"
 
+    def test_producao_restrita_recebe_leiaute_nt009(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
+        cert, key = cert_e_chave
+        cfg = get_config(session)
+        cfg["modo_teste"] = True
+        save_config(session, cfg)
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        dps = _dps(sefin["fake"].enviadas[0])
+        validar(dps, schema_dps(LEIAUTE_NT009))
+        assert dps.findtext(f".//{_q('finNFSe')}") == "0"
+
     def test_teste_nao_bloqueia_a_ref_em_producao(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
         cert, key = cert_e_chave
         cfg = get_config(session)
@@ -314,6 +333,29 @@ class TestHomologacao:
         assert r.get("idempotente") is not True
         assert r["nota"].ambiente == "nacional"
         assert session.query(Nota).count() == 2
+
+
+class TestLeiauteNaProducao:
+    def test_producao_passa_para_nt009_na_data_de_corte(
+        self, session, cfg_nacional, sefin, cert_e_chave, monkeypatch  # noqa: F811
+    ):
+        monkeypatch.setattr(nacional, "INICIO_NT009_PRODUCAO", date(2000, 1, 1))
+        cert, key = cert_e_chave
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        dps = _dps(sefin["fake"].enviadas[0])
+        assert dps.findtext(f".//{_q('tpAmb')}") == "1"
+        validar(dps, schema_dps(LEIAUTE_NT009))
+
+    def test_producao_fica_no_nt004_antes_da_data_de_corte(
+        self, session, cfg_nacional, sefin, cert_e_chave, monkeypatch  # noqa: F811
+    ):
+        monkeypatch.setattr(nacional, "INICIO_NT009_PRODUCAO", date(2999, 1, 1))
+        cert, key = cert_e_chave
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        dps = _dps(sefin["fake"].enviadas[0])
+        assert dps.find(f".//{_q('finNFSe')}") is None
 
 
 class TestCancelamento:
@@ -333,7 +375,7 @@ class TestCancelamento:
         chave, pedido = sefin["fake"].eventos[0]
         assert chave == chave_teste()
         root = etree.fromstring(pedido)
-        validar(root, "nacional/1.01/pedRegEvento_v1.01.xsd")
+        validar(root, schema_evento(leiaute_vigente(False, hoje_brasilia())))
         assert root.findtext(f".//{_q('cMotivo')}") == "2"
         assert root.findtext(f".//{_q('tpAmb')}") == "1"
 

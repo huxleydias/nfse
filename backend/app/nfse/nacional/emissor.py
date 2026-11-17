@@ -27,10 +27,11 @@ from app.nfse.xsd_validator import validar
 from . import (
     AMBIENTE_HOMOLOGACAO,
     AMBIENTE_PRODUCAO,
-    SCHEMA_DPS,
-    SCHEMA_EVENTO,
     agora_brasilia,
     hoje_brasilia,
+    leiaute_vigente,
+    schema_dps,
+    schema_evento,
 )
 from .assinatura import assinar
 from .cliente import SefinClient, SefinRecusouError, normalizar_mensagens
@@ -101,7 +102,7 @@ def _validar_config(cfg: dict, payload: EmissaoPayload) -> dict:
     return servico
 
 
-def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao) -> dict:
+def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao, leiaute) -> dict:
     nac = cfg["nacional"]
     prestador = cfg["prestador"]
     tomador = {
@@ -112,6 +113,7 @@ def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao) -
     }
     return {
         "tp_amb": 2 if homologacao else 1,
+        "leiaute": leiaute,
         "dh_emi": agora_brasilia(),
         "serie": serie,
         "numero": numero,
@@ -196,9 +198,12 @@ def emitir_nacional(payload: EmissaoPayload, session, cfg: dict, cert, private_k
         numero = alocar_numero_dps(session, homologacao)
         id_dps = montar_id_dps(cfg["nacional"]["c_loc_emi"], doc_prestador, serie, numero)
 
-    root = build_dps(_dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao))
+    leiaute = leiaute_vigente(homologacao, hoje_brasilia())
+    root = build_dps(
+        _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao, leiaute)
+    )
     assinar(root, root[0], cert, private_key)
-    validar(root, SCHEMA_DPS)
+    validar(root, schema_dps(leiaute))
     dps = xml_bytes(root)
 
     if nota is None:
@@ -260,7 +265,7 @@ def cancelar_nacional(nota: Nota, session, cfg: dict, cert, private_key,
         nota.chave_acesso, motivo_codigo, texto,
     )
     assinar(root, root[0], cert, private_key)
-    validar(root, SCHEMA_EVENTO)
+    validar(root, schema_evento(leiaute_vigente(homologacao, hoje_brasilia())))
 
     cliente = criar_cliente(cert, private_key, homologacao)
     try:

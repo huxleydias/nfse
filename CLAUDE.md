@@ -8,7 +8,7 @@ Emissor standalone de NFS-e em dois ambientes: webservice da Prefeitura de Sao P
 - Idioma de UI, mensagens, docs e commits: portugues (sem acentos em codigo/commits e permitido).
 - Segredos SO em variaveis de ambiente (`.env` local, Variables no Railway). Nunca em codigo ou config commitada. Valores com `$` (hash bcrypt) entre aspas simples no `.env`.
 - A senha do certificado A1 nunca aparece em log, resposta de API ou texto puro em disco (cifrada com Fernet, chave derivada de SECRET_KEY).
-- Todo XML enviado valida ANTES contra os XSDs oficiais: `backend/schemas/` (v02-5, prefeitura) e `backend/schemas/nacional/1.01/` (Sistema Nacional). Se publicarem XSD novo, substituir a pasta inteira e rodar a suite.
+- Todo XML enviado valida ANTES contra os XSDs oficiais: `backend/schemas/` (v02-5, prefeitura) e `backend/schemas/nacional/` (Sistema Nacional, uma pasta por leiaute, ver o `LEIAME.md` de la). Se publicarem XSD novo, substituir a pasta inteira e rodar a suite.
 - Emissao real so com `modo_teste` desligado; o metodo de teste e `TesteEnvioLoteRPS` (recebe lote com 1 RPS).
 - Numeracao de RPS nunca regride: o contador em config so avanca. Numero queimado por falha de rede e aceitavel (prefeitura tolera gaps).
 
@@ -85,6 +85,7 @@ Fatos que custaram caro descobrir:
 - API de DANFSe suspensa em 03/08/2026 (NT 008): `pdf_url` e o link da Consulta Publica (`https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=`).
 - Algoritmo da assinatura em constante (`ALGORITMO_PADRAO = "sha256"`). Se a producao restrita recusar com E0714, a troca para SHA-1 e de uma linha.
 - Grupo IBS/CBS ainda nao enviado: para o Simples ele vale a partir de 01/01/2027.
+- Dois leiautes ate 30/11/2026: producao na NT 004, producao restrita na NT 009 (finNFSe obrigatorio em infDPS). A producao passa para a NT 009 em 01/12/2026 (`INICIO_NT009_PRODUCAO`); se o governo adiar, mudar a constante.
 - Colunas novas entram no banco existente pelo `init_db` (`ALTER TABLE ADD COLUMN` para o que faltar), sem framework de migracao.
 
 ## Comandos
