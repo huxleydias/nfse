@@ -192,6 +192,17 @@ class TestEmissao:
         assert _dps(sefin["fake"].enviadas[0]).findtext(f".//{_q('IM')}") == "000000012345678"
         assert get_config(session)["prestador"]["inscricao_municipal"] == "12345678"
 
+    def test_codigo_municipal_e_nbs_do_servico(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
+        cert, key = cert_e_chave
+        cfg = get_config(session)
+        cfg["servicos"]["05762"].update({"c_trib_mun": "003", "c_nbs": "122051900"})
+        save_config(session, cfg)
+        sefin["fake"].emitir_efeitos = [resposta_autorizada()]
+        emitir(payload(), session, None, cert, key)
+        dps = _dps(sefin["fake"].enviadas[0])
+        assert dps.findtext(f".//{_q('cTribMun')}") == "003"
+        assert dps.findtext(f".//{_q('cNBS')}") == "122051900"
+
     def test_mesma_ref_autorizada_e_idempotente(self, session, cfg_nacional, sefin, cert_e_chave):  # noqa: F811
         cert, key = cert_e_chave
         sefin["fake"].emitir_efeitos = [resposta_autorizada()]

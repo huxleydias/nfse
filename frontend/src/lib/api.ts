@@ -74,6 +74,8 @@ export interface ServicoConfig {
   c_loc_prestacao?: string
   /** Nacional: codigo de tributacao nacional, 6 digitos */
   c_trib_nac?: string
+  /** Nacional: desdobro municipal do codigo nacional, 3 digitos, opcional */
+  c_trib_mun?: string
   /** Nacional: NBS, 9 digitos, opcional */
   c_nbs?: string
 }

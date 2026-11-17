@@ -234,6 +234,26 @@ class TestLeiaute:
         with pytest.raises(XSDValidationError):
             validar(build_dps(dados_base()), schema_dps(LEIAUTE_NT009))
 
+    @pytest.mark.parametrize("leiaute, ordem", [
+        (LEIAUTE_NT004, ["cTribNac", "cTribMun", "xDescServ", "cNBS"]),
+        (LEIAUTE_NT009, ["cTribNac", "cTribMun", "cNBS", "xDescServ"]),
+    ])
+    def test_ordem_do_cserv_por_leiaute(self, cert_e_chave, leiaute, ordem):
+        # A NT 009 move xDescServ para o fim de cServ.
+        cert, key = cert_e_chave
+        dados = dados_base(leiaute=leiaute)
+        dados["servico"] = {**dados["servico"], "c_trib_mun": "003", "c_nbs": "122051900"}
+        root = build_dps(dados)
+        assinar(root, root[0], cert, key)
+        validar(root, schema_dps(leiaute))
+        cserv = root.find(f".//{_q('cServ')}")
+        assert [etree.QName(e).localname for e in cserv] == ordem
+        assert cserv.findtext(_q("cTribMun")) == "003"
+
+    def test_sem_ctribmun_quando_vazio(self):
+        root = build_dps(dados_base(leiaute=LEIAUTE_NT009))
+        assert root.find(f".//{_q('cTribMun')}") is None
+
     def test_evento_valido_no_xsd_nt009(self, cert_e_chave):
         cert, key = cert_e_chave
         root = build_pedido_cancelamento(
