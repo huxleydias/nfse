@@ -82,6 +82,8 @@ class TestConfigNacional:
         {"servicos": {"05762": {"aliquota": 0.02, "c_nbs": "12"}}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "12"}}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "000"}}},
+        {"servicos": {"05762": {"aliquota": 0.02, "p_tot_trib_sn": 100}}},
+        {"servicos": {"05762": {"aliquota": 0.02, "p_tot_trib_sn": "abc"}}},
     ])
     def test_valores_invalidos(self, api_logada, corpo):
         assert api_logada.put("/api/config", json=corpo).status_code == 422
@@ -162,6 +164,14 @@ class TestMcpNacional:
         assert conteudo["destino_da_emissao"] == "Sistema Nacional (nota real)"
         assert conteudo["nacional"]["p_tot_trib_sn"] == 6
         assert conteudo["servicos"][0]["codigo_tributacao_nacional"] == "080201"
+        assert conteudo["servicos"][0]["percentual_tributos_sn"] == 6
+
+    def test_configuracao_mostra_percentual_do_servico(self, api_nacional):
+        cfg = api_nacional.get("/api/config").json()
+        cfg["servicos"]["05762"]["p_tot_trib_sn"] = 11.2
+        assert api_nacional.put("/api/config", json={"servicos": cfg["servicos"]}).status_code == 200
+        servico = _mcp(api_nacional, "consultar_configuracao", {})["servicos"][0]
+        assert servico["percentual_tributos_sn"] == 11.2
 
     def test_emitir_nota_nacional(self, api_nacional):
         api_nacional.sefin.emitir_efeitos = [resposta_autorizada()]

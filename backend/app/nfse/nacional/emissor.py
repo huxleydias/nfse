@@ -57,6 +57,26 @@ def ref_no_banco(ref_externa: str | None, homologacao: bool) -> str | None:
     return f"{PREFIXO_REF_HOMOLOGACAO}{ref_externa}" if homologacao else ref_externa
 
 
+def _percentual(valor) -> float | None:
+    try:
+        return float(valor) if valor not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def percentual_sn(cfg: dict, servico: dict | None) -> float | None:
+    """pTotTribSN do servico, ou o geral do bloco nacional.
+
+    E a aliquota nominal da faixa do Simples, que depende do anexo: cursos
+    (8.02) so entram no Anexo III, consultoria (1.06) depende do Fator R. Por
+    isso cada servico pode ter o proprio valor.
+    """
+    proprio = _percentual((servico or {}).get("p_tot_trib_sn"))
+    if proprio is not None:
+        return proprio
+    return _percentual((cfg.get("nacional") or {}).get("p_tot_trib_sn"))
+
+
 def _validar_config(cfg: dict, payload: EmissaoPayload) -> dict:
     erros = []
     nac = cfg.get("nacional") or {}
@@ -67,16 +87,6 @@ def _validar_config(cfg: dict, payload: EmissaoPayload) -> dict:
         erros.append(
             "Emissao nacional implementada para optante do Simples ME/EPP "
             "(nacional.op_simp_nac = 3)"
-        )
-    p_tot = nac.get("p_tot_trib_sn")
-    try:
-        p_tot = float(p_tot) if p_tot not in (None, "") else None
-    except (TypeError, ValueError):
-        p_tot = None
-    if p_tot is None or not 0 <= p_tot < 100:
-        erros.append(
-            "Configure nacional.p_tot_trib_sn: percentual aproximado de "
-            "tributos do Simples, de 0 a 99,99 (confirme com o contador)"
         )
     try:
         serie_formatada(nac.get("serie_dps", ""))
@@ -100,6 +110,12 @@ def _validar_config(cfg: dict, payload: EmissaoPayload) -> dict:
         mun = so_digitos(servico.get("c_trib_mun") or "")
         if mun and (len(mun) != 3 or mun == "000"):
             erros.append(f"Servico {payload.servico}: c_trib_mun deve ter 3 digitos, exceto 000")
+    p_tot = percentual_sn(cfg, servico)
+    if p_tot is None or not 0 <= p_tot < 100:
+        erros.append(
+            "Configure nacional.p_tot_trib_sn (ou o percentual do servico): aliquota "
+            "nominal da faixa do Simples, de 0 a 99,99 (confirme com o contador)"
+        )
     if erros:
         raise EmissaoInvalidaError(erros)
     return servico
@@ -146,7 +162,7 @@ def _dados_dps(cfg, payload, servico, serie, numero, competencia, homologacao, l
             "c_nbs": servico.get("c_nbs", ""),
         },
         "valor": payload.valor,
-        "p_tot_trib_sn": float(nac["p_tot_trib_sn"]),
+        "p_tot_trib_sn": percentual_sn(cfg, servico),
     }
 
 
