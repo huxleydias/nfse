@@ -8,6 +8,8 @@ Regras do Anexo I que moldam este builder:
   (E0625, E0631).
 - ME/EPP nunca informa indTotTrib (E0712): o total aproximado de tributos vai
   em pTotTribSN.
+- Leiaute NT 009: finNFSe (0, NFS-e regular) logo depois de tpEmit; a NT 004
+  nao tem esse campo em infDPS.
 """
 from datetime import date, datetime
 
@@ -15,9 +17,10 @@ from lxml import etree
 
 from app.nfse.utils import so_digitos
 
-from . import NS, VER_APLIC, VERSAO_LEIAUTE
+from . import LEIAUTE_NT004, LEIAUTE_NT009, NS, VER_APLIC, VERSAO_LEIAUTE
 
 TP_EMIT_PRESTADOR = "1"
+FIN_NFSE_REGULAR = "0"
 TRIB_ISSQN_TRIBUTAVEL = "1"
 RET_ISSQN_NAO_RETIDO = "1"
 
@@ -97,7 +100,8 @@ def build_dps(dados: dict) -> etree._Element:
     serie, numero, competencia (date), c_loc_emi, prestador {cnpj, im},
     reg_trib {op_simp_nac, reg_ap_trib_sn, reg_esp_trib},
     tomador {cpf_cnpj, razao_social, email, endereco}, servico
-    {c_loc_prestacao, c_trib_nac, descricao, c_nbs}, valor, p_tot_trib_sn.
+    {c_loc_prestacao, c_trib_nac, descricao, c_nbs}, valor, p_tot_trib_sn,
+    leiaute (LEIAUTE_NT004 por padrao).
     """
     prestador = dados["prestador"]
     id_dps = montar_id_dps(
@@ -118,6 +122,8 @@ def build_dps(dados: dict) -> etree._Element:
     _el(inf, "nDPS", int(dados["numero"]))
     _el(inf, "dCompet", competencia.isoformat())
     _el(inf, "tpEmit", TP_EMIT_PRESTADOR)
+    if dados.get("leiaute", LEIAUTE_NT004) == LEIAUTE_NT009:
+        _el(inf, "finNFSe", FIN_NFSE_REGULAR)
     _el(inf, "cLocEmi", so_digitos(dados["c_loc_emi"]))
 
     prest = _el(inf, "prest")

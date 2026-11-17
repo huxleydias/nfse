@@ -9,7 +9,17 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from lxml import etree
 
-from app.nfse.nacional import FUSO_BRASILIA, NS, SCHEMA_DPS, SCHEMA_EVENTO
+from app.nfse.nacional import (
+    FUSO_BRASILIA,
+    LEIAUTE_NT004,
+    LEIAUTE_NT009,
+    NS,
+    SCHEMA_DPS,
+    SCHEMA_EVENTO,
+    leiaute_vigente,
+    schema_dps,
+    schema_evento,
+)
 from app.nfse.nacional.assinatura import DS, assinar
 from app.nfse.nacional.dps import build_dps, montar_id_dps, serie_formatada, xml_bytes
 from app.nfse.nacional.evento import build_pedido_cancelamento, montar_id_evento
@@ -190,6 +200,48 @@ class TestDps:
         assinar(root, root[0], cert, key)
         with pytest.raises(XSDValidationError):
             validar(root, SCHEMA_DPS)
+
+
+class TestLeiaute:
+    """NT 004 na producao ate 30/11/2026; NT 009 na producao restrita desde
+    20/10/2026 e na producao a partir de 01/12/2026."""
+
+    def test_homologacao_usa_nt009(self):
+        assert leiaute_vigente(True, date(2026, 11, 17)) == LEIAUTE_NT009
+
+    def test_producao_usa_nt004_ate_30_11(self):
+        assert leiaute_vigente(False, date(2026, 11, 30)) == LEIAUTE_NT004
+
+    def test_producao_usa_nt009_a_partir_de_01_12(self):
+        assert leiaute_vigente(False, date(2026, 12, 1)) == LEIAUTE_NT009
+
+    def test_dps_nt009_tem_finnfse_depois_de_tpemit(self, cert_e_chave):
+        cert, key = cert_e_chave
+        root = build_dps(dados_base(leiaute=LEIAUTE_NT009))
+        assinar(root, root[0], cert, key)
+        validar(root, schema_dps(LEIAUTE_NT009))
+        inf = root.find(_q("infDPS"))
+        tags = [etree.QName(e).localname for e in inf]
+        assert tags[tags.index("tpEmit") + 1] == "finNFSe"
+        assert inf.findtext(_q("finNFSe")) == "0"
+
+    def test_dps_nt004_sem_finnfse(self):
+        root = build_dps(dados_base(leiaute=LEIAUTE_NT004))
+        assert root.find(f".//{_q('finNFSe')}") is None
+        validar(root, schema_dps(LEIAUTE_NT004))
+
+    def test_dps_nt004_recusada_no_xsd_nt009(self):
+        with pytest.raises(XSDValidationError):
+            validar(build_dps(dados_base()), schema_dps(LEIAUTE_NT009))
+
+    def test_evento_valido_no_xsd_nt009(self, cert_e_chave):
+        cert, key = cert_e_chave
+        root = build_pedido_cancelamento(
+            2, datetime(2026, 11, 17, 11, 0, tzinfo=FUSO_BRASILIA),
+            "11222333000181", CHAVE, 1, "Erro na emissao da nota",
+        )
+        assinar(root, root[0], cert, key)
+        validar(root, schema_evento(LEIAUTE_NT009))
 
 
 class TestAssinatura:
