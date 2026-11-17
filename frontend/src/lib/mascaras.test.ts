@@ -4,16 +4,19 @@ import {
   completarCodigo,
   documentoValido,
   ehCnpj,
-  fracaoParaPercentual,
+  formatarCodigo,
+  fracaoParaPorcentagem,
+  limparDecimal,
   mascaraCep,
   mascaraCodigo,
   mascaraCpfCnpj,
   mascaraMoeda,
-  mascaraPercentual,
   moedaParaNumero,
   numeroParaMoeda,
-  percentualParaFracao,
+  numeroParaTexto,
+  porcentagemParaFracao,
   soDigitos,
+  textoParaNumero,
 } from "./mascaras"
 
 describe("mascaraCpfCnpj", () => {
@@ -87,18 +90,33 @@ describe("moeda", () => {
   })
 })
 
-describe("percentual e aliquota", () => {
-  it("exibe em porcentagem e guarda em fracao", () => {
-    expect(mascaraPercentual("200")).toBe("2,00")
-    expect(percentualParaFracao("2,00")).toBe(0.02)
-    expect(percentualParaFracao("5,00")).toBe(0.05)
+describe("porcentagem", () => {
+  it("le o numero do jeito que se escreve na nota", () => {
+    expect(textoParaNumero("2")).toBe(2)
+    expect(textoParaNumero("2,9")).toBe(2.9)
+    expect(textoParaNumero("11.2")).toBe(11.2)
+    expect(textoParaNumero("11,2%")).toBe(11.2)
+    expect(textoParaNumero("")).toBeNull()
   })
 
-  it("converte a fracao guardada de volta para exibicao", () => {
-    expect(fracaoParaPercentual(0.02)).toBe("2,00")
-    expect(fracaoParaPercentual(0.05)).toBe("5,00")
-    // Aliquota zero (isento) aparece como 0,00, nao como campo em branco
-    expect(fracaoParaPercentual(0)).toBe("0,00")
+  it("mantem so digitos e uma virgula enquanto digita", () => {
+    expect(limparDecimal("11,")).toBe("11,")
+    expect(limparDecimal("1,1,2")).toBe("1,12")
+    expect(limparDecimal("abc2.9")).toBe("2,9")
+  })
+
+  it("exibe sem zeros sobrando", () => {
+    expect(numeroParaTexto(11.2)).toBe("11,2")
+    expect(numeroParaTexto(2)).toBe("2")
+    expect(numeroParaTexto(null)).toBe("")
+  })
+
+  it("converte a aliquota do ISS entre porcentagem e a fracao guardada", () => {
+    expect(fracaoParaPorcentagem(0.029)).toBe(2.9)
+    expect(fracaoParaPorcentagem(0.02)).toBe(2)
+    expect(porcentagemParaFracao(2.9)).toBe(0.029)
+    expect(porcentagemParaFracao(5)).toBe(0.05)
+    expect(porcentagemParaFracao(null)).toBe(0)
   })
 })
 
@@ -116,5 +134,12 @@ describe("codigos fiscais", () => {
 
   it("nao inventa codigo quando o campo esta vazio", () => {
     expect(completarCodigo("", 6)).toBe("")
+  })
+
+  it("formata como no DANFSe enquanto digita", () => {
+    expect(formatarCodigo("080201", "##.##.##")).toBe("08.02.01")
+    expect(formatarCodigo("0802", "##.##.##")).toBe("08.02")
+    expect(formatarCodigo("122051900", "#.####.##.##")).toBe("1.2205.19.00")
+    expect(formatarCodigo("", "##.##.##")).toBe("")
   })
 })

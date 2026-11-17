@@ -94,6 +94,7 @@ class TestFerramentasMCP:
         nomes = {t["name"] for t in _corpo(r)["result"]["tools"]}
         assert nomes == {
             "consultar_configuracao",
+            "atualizar_configuracao",
             "listar_notas",
             "consultar_nota",
             "emitir_nota",

@@ -20,15 +20,31 @@ import {
   type NacionalConfig,
   type ServicoConfig,
 } from "@/lib/api"
+import { CampoCodigo, CampoPercentual } from "@/components/campos"
 import {
-  completarCodigo,
   documentoValido,
-  fracaoParaPercentual,
+  fracaoParaPorcentagem,
   mascaraCodigo,
   mascaraCpfCnpj,
-  percentualParaFracao,
+  numeroParaTexto,
+  porcentagemParaFracao,
   soDigitos,
 } from "@/lib/mascaras"
+
+// Nenhuma aliquota nominal do Simples fica abaixo de 4%: valor menor e quase
+// sempre fracao digitada no lugar de porcentagem
+function avisoSimples(n: number) {
+  if (n > 0 && n < 4) {
+    return `A aliquota do Simples comeca em 4%. Para 11,2% digite 11,2 (hoje esta ${numeroParaTexto(n)}%).`
+  }
+  return null
+}
+
+function avisoIss(n: number) {
+  if (n > 0 && n < 1) return "Digite em porcentagem: 2 para 2%."
+  if (n > 5) return "O ISS municipal vai ate 5%."
+  return null
+}
 
 const SERVICO_VAZIO: ServicoConfig = {
   descricao_padrao: "",
@@ -40,7 +56,7 @@ const SERVICO_VAZIO: ServicoConfig = {
   fin_nfse: 0,
   ind_final: 1,
   ind_dest: 0,
-  c_loc_prestacao: "3550308",
+  c_loc_prestacao: "",
   c_trib_nac: "",
   c_trib_mun: "",
   c_nbs: "",
@@ -50,9 +66,6 @@ export default function Config() {
   const [cfg, setCfg] = useState<ConfigT | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [novoCodigo, setNovoCodigo] = useState("")
-  // Texto do percentual enquanto digita: o numero sozinho perderia "6," no meio
-  const [pTotTexto, setPTotTexto] = useState<string | null>(null)
-  const [pTotServicoTexto, setPTotServicoTexto] = useState<Record<string, string>>({})
 
   useEffect(() => {
     api.obterConfig().then(setCfg)
@@ -89,7 +102,16 @@ export default function Config() {
       toast.error("Informe o codigo de servico municipal (4 ou 5 digitos)")
       return
     }
-    setCfg((c) => c && { ...c, servicos: { ...c.servicos, [codigo]: { ...SERVICO_VAZIO } } })
+    setCfg(
+      (c) =>
+        c && {
+          ...c,
+          servicos: {
+            ...c.servicos,
+            [codigo]: { ...SERVICO_VAZIO, c_loc_prestacao: c.nacional.c_loc_emi },
+          },
+        },
+    )
     setNovoCodigo("")
   }
 
@@ -180,37 +202,16 @@ export default function Config() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Percentual aproximado de tributos do Simples</Label>
-              <div className="relative">
-                <Input
-                  className="pr-8 text-right tabular-nums"
-                  inputMode="decimal"
-                  value={
-                    pTotTexto ??
-                    (cfg.nacional.p_tot_trib_sn == null
-                      ? ""
-                      : String(cfg.nacional.p_tot_trib_sn).replace(".", ","))
-                  }
-                  placeholder="0,00"
-                  onChange={(e) => {
-                    const texto = e.target.value.replace(/[^\d,]/g, "")
-                    setPTotTexto(texto)
-                    const numero = Number(texto.replace(",", "."))
-                    setNacional(
-                      "p_tot_trib_sn",
-                      texto === "" || Number.isNaN(numero) ? null : numero,
-                    )
-                  }}
-                  onBlur={() => setPTotTexto(null)}
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  %
-                </span>
-              </div>
+              <Label>Percentual do Simples</Label>
+              <CampoPercentual
+                valor={cfg.nacional.p_tot_trib_sn}
+                aoMudar={(n) => setNacional("p_tot_trib_sn", n)}
+                placeholder="11,2"
+                aviso={avisoSimples}
+              />
               <p className="text-xs text-muted-foreground">
-                Aliquota nominal da faixa do Simples (campo pTotTribSN), usada nos servicos sem
-                percentual proprio. Confirme com o contador. Sem valor em nenhum dos dois, a
-                emissao e recusada antes de enviar.
+                A aliquota da sua faixa do Simples, como o contador informa (ex.: 11,2). Vale para
+                os servicos sem percentual proprio.
               </p>
             </div>
             <div className="space-y-2">
@@ -299,6 +300,7 @@ export default function Config() {
         </Card>
       )}
 
+      {!nacional && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Layout do XML</CardTitle>
@@ -320,14 +322,14 @@ export default function Config() {
               </p>
             </div>
           </div>
-          {cfg.layout === 1 && (
+          {cfg.layout === 2 && (
             <p className="text-xs text-muted-foreground">
-              No layout 1 os campos NBS, cClassTrib e cIndOp abaixo ficam guardados mas
-              nao vao no XML.
+              No layout 2 cada servico ganha os campos da reforma (NBS, cClassTrib, cIndOp).
             </p>
           )}
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -376,6 +378,7 @@ export default function Config() {
         </CardContent>
       </Card>
 
+      {!nacional && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">RPS</CardTitle>
@@ -404,6 +407,7 @@ export default function Config() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -426,191 +430,130 @@ export default function Config() {
                     onChange={(e) => setServico(codigo, "descricao_padrao", e.target.value)}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>Aliquota do ISS</Label>
-                  <div className="relative">
+                {!nacional && (
+                  <>
+                    <div className="space-y-1">
+                      <Label>Aliquota do ISS</Label>
+                      <CampoPercentual
+                        valor={fracaoParaPorcentagem(s.aliquota)}
+                        aoMudar={(n) => setServico(codigo, "aliquota", porcentagemParaFracao(n))}
+                        placeholder="2"
+                        aviso={avisoIss}
+                      />
+                      <p className="text-xs text-muted-foreground">Como na nota: 2 para 2%</p>
+                    </div>
+                    <div className="flex items-center gap-2 pt-5">
+                      <Switch
+                        checked={s.iss_retido}
+                        onCheckedChange={(v) => setServico(codigo, "iss_retido", v)}
+                      />
+                      <Label>ISS retido pelo tomador</Label>
+                    </div>
+                  </>
+                )}
+                {nacional && (
+                  <>
+                    <div className="space-y-1">
+                      <Label>Codigo de tributacao nacional</Label>
+                      <CampoCodigo
+                        valor={s.c_trib_nac}
+                        aoMudar={(d) => setServico(codigo, "c_trib_nac", d)}
+                        padrao="##.##.##"
+                        placeholder="08.02.01"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Como aparece no DANFSe. Cursos: 08.02.01
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Codigo municipal (opcional)</Label>
+                      <CampoCodigo
+                        valor={s.c_trib_mun}
+                        aoMudar={(d) => setServico(codigo, "c_trib_mun", d)}
+                        padrao="###"
+                        placeholder="001"
+                        completarAte={3}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Os 3 digitos depois da barra no DANFSe (01.06.01 / 001)
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>NBS (opcional)</Label>
+                      <CampoCodigo
+                        valor={s.c_nbs}
+                        aoMudar={(d) => setServico(codigo, "c_nbs", d)}
+                        padrao="#.####.##.##"
+                        placeholder="1.2205.19.00"
+                      />
+                      <p className="text-xs text-muted-foreground">Como aparece no DANFSe</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Percentual do Simples deste servico (opcional)</Label>
+                      <CampoPercentual
+                        valor={s.p_tot_trib_sn}
+                        aoMudar={(n) => setServico(codigo, "p_tot_trib_sn", n)}
+                        placeholder={numeroParaTexto(cfg.nacional.p_tot_trib_sn) || "11,2"}
+                        aviso={avisoSimples}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Vazio usa o percentual geral
+                        {cfg.nacional.p_tot_trib_sn != null &&
+                          ` (${numeroParaTexto(cfg.nacional.p_tot_trib_sn)}%)`}
+                      </p>
+                    </div>
+                  </>
+                )}
+                {(nacional || cfg.layout === 2) && (
+                  <div className="space-y-1">
+                    <Label>Municipio da prestacao (IBGE)</Label>
                     <Input
-                      className="pr-8 text-right tabular-nums"
+                      className="tabular-nums"
                       inputMode="numeric"
-                      value={fracaoParaPercentual(s.aliquota)}
+                      value={s.c_loc_prestacao ?? ""}
+                      placeholder={cfg.nacional.c_loc_emi}
                       onChange={(e) =>
-                        setServico(codigo, "aliquota", percentualParaFracao(e.target.value))
-                      }
-                      placeholder="0,00"
-                    />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      %
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Em porcentagem: digite 200 para 2,00%. Vai como {s.aliquota} no XML
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 pt-5">
-                  <Switch
-                    checked={s.iss_retido}
-                    onCheckedChange={(v) => setServico(codigo, "iss_retido", v)}
-                  />
-                  <Label>ISS retido</Label>
-                </div>
-                <div className="space-y-1">
-                  <Label>NBS</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.nbs}
-                    placeholder="000000000"
-                    onChange={(e) => setServico(codigo, "nbs", mascaraCodigo(e.target.value, 9))}
-                    onBlur={(e) => setServico(codigo, "nbs", completarCodigo(e.target.value, 9))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    9 digitos. Codigo curto ganha zeros a esquerda ao sair do campo
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>cClassTrib</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.c_class_trib}
-                    placeholder="000000"
-                    onChange={(e) =>
-                      setServico(codigo, "c_class_trib", mascaraCodigo(e.target.value, 6))
-                    }
-                    onBlur={(e) =>
-                      setServico(codigo, "c_class_trib", completarCodigo(e.target.value, 6))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    6 digitos, classificacao tributaria IBS/CBS (confirmar com o contador)
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>cIndOp</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.c_ind_op}
-                    placeholder="000000"
-                    onChange={(e) =>
-                      setServico(codigo, "c_ind_op", mascaraCodigo(e.target.value, 6))
-                    }
-                    onBlur={(e) =>
-                      setServico(codigo, "c_ind_op", completarCodigo(e.target.value, 6))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    6 digitos, indicador de operacao do Anexo VII
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Cod. municipio da prestacao</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.c_loc_prestacao ?? "3550308"}
-                    onChange={(e) =>
-                      setServico(codigo, "c_loc_prestacao", mascaraCodigo(e.target.value, 7))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    IBGE, 7 digitos. Sao Paulo e 3550308
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Codigo de tributacao nacional</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.c_trib_nac ?? ""}
-                    placeholder="080201"
-                    onChange={(e) =>
-                      setServico(codigo, "c_trib_nac", mascaraCodigo(e.target.value, 6))
-                    }
-                    onBlur={(e) =>
-                      e.target.value &&
-                      setServico(codigo, "c_trib_nac", completarCodigo(e.target.value, 6))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Ambiente nacional, 6 digitos (Anexo I). Instrucao e treinamento e 080201
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Codigo de tributacao municipal (nacional, opcional)</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.c_trib_mun ?? ""}
-                    placeholder="001"
-                    onChange={(e) =>
-                      setServico(codigo, "c_trib_mun", mascaraCodigo(e.target.value, 3))
-                    }
-                    onBlur={(e) =>
-                      e.target.value &&
-                      setServico(codigo, "c_trib_mun", completarCodigo(e.target.value, 3))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    3 digitos, o que vem depois da barra no DANFSe (01.06.01 / 001). Vazio fica de
-                    fora da DPS
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>NBS (nacional, opcional)</Label>
-                  <Input
-                    className="tabular-nums"
-                    inputMode="numeric"
-                    value={s.c_nbs ?? ""}
-                    placeholder="000000000"
-                    onChange={(e) => setServico(codigo, "c_nbs", mascaraCodigo(e.target.value, 9))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    9 digitos. Vazio fica de fora da DPS
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Percentual de tributos do Simples (nacional, opcional)</Label>
-                  <div className="relative">
-                    <Input
-                      className="pr-8 text-right tabular-nums"
-                      inputMode="decimal"
-                      value={
-                        pTotServicoTexto[codigo] ??
-                        (s.p_tot_trib_sn == null ? "" : String(s.p_tot_trib_sn).replace(".", ","))
-                      }
-                      placeholder={
-                        cfg.nacional.p_tot_trib_sn == null
-                          ? "0,00"
-                          : String(cfg.nacional.p_tot_trib_sn).replace(".", ",")
-                      }
-                      onChange={(e) => {
-                        const texto = e.target.value.replace(/[^\d,]/g, "")
-                        setPTotServicoTexto((t) => ({ ...t, [codigo]: texto }))
-                        const numero = Number(texto.replace(",", "."))
-                        setServico(
-                          codigo,
-                          "p_tot_trib_sn",
-                          texto === "" || Number.isNaN(numero) ? null : numero,
-                        )
-                      }}
-                      onBlur={() =>
-                        setPTotServicoTexto((t) => {
-                          const resto = { ...t }
-                          delete resto[codigo]
-                          return resto
-                        })
+                        setServico(codigo, "c_loc_prestacao", mascaraCodigo(e.target.value, 7))
                       }
                     />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      %
-                    </span>
+                    <p className="text-xs text-muted-foreground">7 digitos. Sao Paulo e 3550308</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Aliquota nominal da faixa do Simples no anexo deste servico. Vazio usa o
-                    percentual geral
-                  </p>
-                </div>
+                )}
+                {!nacional && cfg.layout === 2 && (
+                  <>
+                    <div className="space-y-1">
+                      <Label>NBS</Label>
+                      <CampoCodigo
+                        valor={s.nbs}
+                        aoMudar={(d) => setServico(codigo, "nbs", d)}
+                        padrao="#.####.##.##"
+                        placeholder="1.2205.19.00"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Classificacao tributaria IBS/CBS (cClassTrib)</Label>
+                      <CampoCodigo
+                        valor={s.c_class_trib}
+                        aoMudar={(d) => setServico(codigo, "c_class_trib", d)}
+                        padrao="######"
+                        placeholder="000001"
+                        completarAte={6}
+                      />
+                      <p className="text-xs text-muted-foreground">Confirme com o contador</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Indicador da operacao (cIndOp)</Label>
+                      <CampoCodigo
+                        valor={s.c_ind_op}
+                        aoMudar={(d) => setServico(codigo, "c_ind_op", d)}
+                        padrao="######"
+                        placeholder="030101"
+                        completarAte={6}
+                      />
+                      <p className="text-xs text-muted-foreground">Anexo VII da reforma</p>
+                    </div>
+                  </>
+                )}
               </div>
               <Separator />
             </div>
@@ -634,10 +577,6 @@ export default function Config() {
               Adicionar
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Valores de cClassTrib e cIndOp devem ser confirmados com o contador antes de
-            emitir nota real para cliente.
-          </p>
         </CardContent>
       </Card>
     </div>

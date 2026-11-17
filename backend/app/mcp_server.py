@@ -39,7 +39,10 @@ from app.nfse.emitter import (
     sincronizar,
 )
 from app.nfse.nacional import AMBIENTE_HOMOLOGACAO, url_consulta_publica
+from app.models.config_edicao import ConfigInvalida, aplicar, numero
+from app.models.config_store import CONFIG_DEFAULT, SERVICO_PADRAO
 from app.nfse.nacional.emissor import percentual_sn
+from app.nfse.utils import so_digitos
 from app.nfse.parser import RespostaInvalidaError
 from app.nfse.pdf import montar_url_pdf
 from app.nfse.signer import CertificadoError
@@ -54,7 +57,8 @@ INSTRUCOES = (
     "fiscal real quando o modo teste esta desligado, e cancelar_nota e "
     "irreversivel. Confirme os dados com o usuario antes de chamar essas duas. "
     "Use consultar_configuracao para saber o ambiente e se o modo teste esta "
-    "ativo."
+    "ativo, e atualizar_configuracao para mudar qualquer campo, menos o modo "
+    "teste e o certificado."
 )
 
 
@@ -84,61 +88,200 @@ def _com_pdf(session, nota: Nota) -> dict:
     return dados
 
 
+def _visao_config(cfg: dict) -> dict:
+    """Config em valores simples: porcentagens em porcentagem, nomes claros.
+    E o mesmo formato que atualizar_configuracao aceita."""
+    from app.models.config_store import ambiente_config
+
+    modo_teste = cfg.get("modo_teste", True)
+    ambiente = ambiente_config(cfg)
+    nacional = cfg.get("nacional", {})
+    if ambiente == "nacional":
+        onde = (
+            "producao restrita do Sistema Nacional (sem valor fiscal)"
+            if modo_teste else "Sistema Nacional (nota real)"
+        )
+    else:
+        onde = (
+            "validacao na Prefeitura, nenhuma nota gerada"
+            if modo_teste else "Prefeitura de Sao Paulo (nota real)"
+        )
+    servicos = []
+    for codigo, servico in cfg.get("servicos", {}).items():
+        aliquota = servico.get("aliquota")
+        servicos.append({
+            "codigo": codigo,
+            "descricao": servico.get("descricao_padrao", ""),
+            "aliquota_iss_percentual": (
+                round(float(aliquota) * 100, 4) if aliquota not in (None, "") else None
+            ),
+            "iss_retido": bool(servico.get("iss_retido", False)),
+            "local_prestacao": servico.get("c_loc_prestacao") or None,
+            "codigo_tributacao_nacional": servico.get("c_trib_nac") or None,
+            "codigo_tributacao_municipal": servico.get("c_trib_mun") or None,
+            "nbs": servico.get("c_nbs") or None,
+            # Percentual proprio do servico (None usa o geral) e o que vai de
+            # fato no pTotTribSN
+            "percentual_tributos_sn_servico": servico.get("p_tot_trib_sn"),
+            "percentual_tributos_sn": percentual_sn(cfg, servico),
+            "layout2": {campo: servico.get(campo) for campo in CAMPOS_LAYOUT2},
+        })
+    return {
+        "ambiente": ambiente,
+        "modo_teste": modo_teste,
+        "emissao_gera_nota_real": not modo_teste,
+        "destino_da_emissao": onde,
+        "layout": cfg.get("layout", 1),
+        "tributacao": cfg.get("tributacao"),
+        "prestador": cfg.get("prestador", {}),
+        "serie_rps": cfg.get("serie_rps"),
+        "proximo_numero_rps": cfg.get("proximo_numero_rps"),
+        "nacional": {
+            campo: (nacional.get(campo) if campo != "inscricao_municipal"
+                    else nacional.get(campo) or None)
+            for campo in CAMPOS_NACIONAL
+        },
+        "servicos": servicos,
+    }
+
+
 def consultar_configuracao() -> dict:
     session = get_session()
     try:
         from app.models.config_store import get_config
 
-        from app.models.config_store import ambiente_config
+        return {"ok": True, **_visao_config(get_config(session))}
+    finally:
+        session.close()
+
+
+# Campos editaveis pelo MCP. modo_teste e certificado ficam de fora de proposito:
+# ligar a emissao real e decisao de quem esta na tela.
+CAMPOS_NACIONAL = tuple(CONFIG_DEFAULT["nacional"])
+CAMPOS_PRESTADOR = tuple(CONFIG_DEFAULT["prestador"])
+CAMPOS_LAYOUT2 = ("nbs", "c_class_trib", "c_ind_op", "fin_nfse", "ind_final", "ind_dest")
+CAMPOS_SERVICO = {
+    "descricao": "descricao_padrao",
+    "aliquota_iss_percentual": "aliquota",
+    "iss_retido": "iss_retido",
+    "local_prestacao": "c_loc_prestacao",
+    "codigo_tributacao_nacional": "c_trib_nac",
+    "codigo_tributacao_municipal": "c_trib_mun",
+    "nbs": "c_nbs",
+    "percentual_tributos_sn_servico": "p_tot_trib_sn",
+}
+
+
+def _servico_canonico(cfg: dict, item: dict) -> tuple[str, dict]:
+    if not isinstance(item, dict) or not item.get("codigo"):
+        raise ConfigInvalida(["Cada servico precisa de codigo (codigo municipal, ex.: 05762)"])
+    codigo = so_digitos(str(item["codigo"])) or str(item["codigo"])
+    atual = cfg.get("servicos", {}).get(codigo)
+    servico = dict(atual) if atual else {
+        **SERVICO_PADRAO, "c_loc_prestacao": cfg.get("nacional", {}).get("c_loc_emi", ""),
+    }
+    erros = []
+    for campo, valor in item.items():
+        if campo == "codigo":
+            continue
+        if campo == "layout2":
+            if not isinstance(valor, dict) or set(valor) - set(CAMPOS_LAYOUT2):
+                erros.append(
+                    f"Servico {codigo}: layout2 aceita {', '.join(CAMPOS_LAYOUT2)}"
+                )
+            else:
+                servico.update(valor)
+            continue
+        if campo not in CAMPOS_SERVICO:
+            erros.append(
+                f"Servico {codigo}: campo {campo} desconhecido. Campos aceitos: "
+                f"{', '.join(['codigo', *CAMPOS_SERVICO, 'layout2'])}"
+            )
+            continue
+        if campo == "aliquota_iss_percentual":
+            percentual = numero(valor)
+            if isinstance(percentual, bool) or not isinstance(percentual, (int, float)):
+                erros.append(f"Servico {codigo}: aliquota_iss_percentual deve ser numero (ex.: 2)")
+                continue
+            if 0 < percentual < 1:
+                erros.append(
+                    f"Servico {codigo}: aliquota_iss_percentual vai em porcentagem: "
+                    "2 para 2%, 2,9 para 2,9%"
+                )
+                continue
+            valor = round(percentual / 100, 6)
+        servico[CAMPOS_SERVICO[campo]] = valor
+    if erros:
+        raise ConfigInvalida(erros)
+    return codigo, servico
+
+
+def atualizar_configuracao(
+    ambiente: str | None = None,
+    layout: int | None = None,
+    tributacao: str | None = None,
+    serie_rps: str | None = None,
+    proximo_numero_rps: int | None = None,
+    prestador: dict | None = None,
+    nacional: dict | None = None,
+    servicos: list[dict] | None = None,
+    remover_servicos: list[str] | None = None,
+) -> dict:
+    session = get_session()
+    try:
+        from app.models.config_store import get_config
 
         cfg = get_config(session)
-        modo_teste = cfg.get("modo_teste", True)
-        ambiente = ambiente_config(cfg)
-        nacional = cfg.get("nacional", {})
-        if ambiente == "nacional":
-            onde = (
-                "producao restrita do Sistema Nacional (sem valor fiscal)"
-                if modo_teste else "Sistema Nacional (nota real)"
-            )
-        else:
-            onde = (
-                "validacao na Prefeitura, nenhuma nota gerada"
-                if modo_teste else "Prefeitura de Sao Paulo (nota real)"
-            )
-        return {
-            "ok": True,
-            "ambiente": ambiente,
-            "modo_teste": modo_teste,
-            "emissao_gera_nota_real": not modo_teste,
-            "destino_da_emissao": onde,
-            "layout": cfg.get("layout", 1),
-            "prestador": cfg.get("prestador", {}),
-            "serie_rps": cfg.get("serie_rps"),
-            "proximo_numero_rps": cfg.get("proximo_numero_rps"),
-            "nacional": {
-                "serie_dps": nacional.get("serie_dps"),
-                "proximo_numero_dps": nacional.get("proximo_numero_dps"),
-                "proximo_numero_dps_homologacao": nacional.get("proximo_numero_dps_homologacao"),
-                "op_simp_nac": nacional.get("op_simp_nac"),
-                "reg_ap_trib_sn": nacional.get("reg_ap_trib_sn"),
-                "p_tot_trib_sn": nacional.get("p_tot_trib_sn"),
-                "informar_im": nacional.get("informar_im"),
-                "inscricao_municipal": nacional.get("inscricao_municipal") or None,
-            },
-            "servicos": [
-                {
-                    "codigo": codigo,
-                    "descricao": servico.get("descricao_padrao", ""),
-                    "aliquota_iss": servico.get("aliquota"),
-                    "codigo_tributacao_nacional": servico.get("c_trib_nac"),
-                    "codigo_tributacao_municipal": servico.get("c_trib_mun") or None,
-                    "nbs": servico.get("c_nbs") or None,
-                    # Percentual que vai no pTotTribSN: o do servico ou o geral
-                    "percentual_tributos_sn": percentual_sn(cfg, servico),
-                }
-                for codigo, servico in cfg.get("servicos", {}).items()
-            ],
-        }
+        novos: dict = {}
+        erros: list[str] = []
+        for chave, valor in (
+            ("ambiente", ambiente), ("layout", layout), ("tributacao", tributacao),
+            ("serie_rps", serie_rps), ("proximo_numero_rps", proximo_numero_rps),
+        ):
+            if valor is not None:
+                novos[chave] = valor
+        if prestador is not None:
+            extras = set(prestador) - set(CAMPOS_PRESTADOR)
+            if extras:
+                erros.append(
+                    f"prestador aceita {', '.join(CAMPOS_PRESTADOR)} "
+                    f"(recebeu {', '.join(sorted(extras))})"
+                )
+            novos["prestador"] = prestador
+        if nacional is not None:
+            if "modo_teste" in nacional:
+                erros.append("modo_teste nao muda pelo MCP: ligue ou desligue na tela Configuracao")
+            extras = set(nacional) - set(CAMPOS_NACIONAL) - {"modo_teste"}
+            if extras:
+                erros.append(
+                    f"nacional aceita {', '.join(CAMPOS_NACIONAL)} "
+                    f"(recebeu {', '.join(sorted(extras))})"
+                )
+            novos["nacional"] = {k: v for k, v in nacional.items() if k != "modo_teste"}
+        if servicos is not None or remover_servicos:
+            todos = dict(cfg.get("servicos", {}))
+            for item in servicos or []:
+                try:
+                    codigo, servico = _servico_canonico(cfg, item)
+                except ConfigInvalida as e:
+                    erros.extend(e.erros)
+                    continue
+                todos[codigo] = servico
+            for codigo in remover_servicos or []:
+                codigo = so_digitos(str(codigo)) or str(codigo)
+                if codigo not in todos:
+                    erros.append(f"Servico {codigo} nao existe para remover")
+                todos.pop(codigo, None)
+            novos["servicos"] = todos
+        if erros:
+            return _erro("; ".join(erros))
+        if not novos:
+            return _erro("Nada para atualizar")
+        try:
+            aplicar(session, novos)
+        except ConfigInvalida as e:
+            return _erro("; ".join(e.erros))
+        return {"ok": True, "configuracao": _visao_config(get_config(session))}
     finally:
         session.close()
 
@@ -321,9 +464,29 @@ FERRAMENTAS = [
         consultar_configuracao,
         "Consultar configuracao",
         "Mostra como o emissor esta configurado: ambiente (municipal ou "
-        "nacional), prestador, leiaute do XML, se o modo teste esta ativo e "
-        "quais codigos de servico existem. Chame antes de emitir para saber "
-        "onde a nota sai e se a emissao sera real ou de teste.",
+        "nacional), prestador, leiaute do XML, se o modo teste esta ativo, o "
+        "bloco nacional e cada servico com todos os campos (porcentagens em "
+        "porcentagem). Chame antes de emitir para saber onde a nota sai e se a "
+        "emissao sera real ou de teste. O formato e o mesmo que "
+        "atualizar_configuracao aceita.",
+    ),
+    (
+        atualizar_configuracao,
+        "Atualizar configuracao",
+        "Altera a configuracao do emissor, menos o modo teste e o certificado "
+        "(esses so pela tela). Atualizacao parcial: mande so o que muda. "
+        "Porcentagens vao em porcentagem (aliquota_iss_percentual 2 = 2%; "
+        "percentual do Simples 11,2 = 11,2%) e codigos podem ir como aparecem no "
+        "DANFSe (08.02.01, 1.2205.19.00). servicos e uma lista de objetos com "
+        "codigo (municipal) e os campos que mudam: descricao, "
+        "aliquota_iss_percentual, iss_retido, local_prestacao, "
+        "codigo_tributacao_nacional, codigo_tributacao_municipal, nbs, "
+        "percentual_tributos_sn_servico (null usa o geral) e layout2 (nbs, "
+        "c_class_trib, c_ind_op, fin_nfse, ind_final, ind_dest). Codigo novo cria "
+        "o servico; remover_servicos apaga. nacional aceita os mesmos campos que "
+        "consultar_configuracao mostra (p_tot_trib_sn e o percentual geral do "
+        "Simples). Devolve a configuracao como ficou. Mudar dado fiscal afeta as "
+        "proximas notas: confirme com o usuario antes.",
     ),
     (
         listar_notas,
@@ -374,7 +537,7 @@ def criar_servidor() -> MCPServer:
         name="nfse-sao-paulo",
         title="NFS-e (Sao Paulo e Sistema Nacional)",
         instructions=INSTRUCOES,
-        version="1.1.0",
+        version="1.2.0",
     )
     for funcao, titulo, descricao in FERRAMENTAS:
         servidor.tool(title=titulo, description=descricao)(funcao)

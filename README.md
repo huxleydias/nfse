@@ -173,6 +173,7 @@ Ferramentas disponiveis:
 | Ferramenta | O que faz |
 |---|---|
 | `consultar_configuracao` | ambiente, prestador, leiaute e se o modo teste esta ativo |
+| `atualizar_configuracao` | altera qualquer campo da configuracao, menos o modo teste e o certificado; porcentagens em porcentagem e codigos como no DANFSe |
 | `listar_notas` | lista com filtros de status e periodo |
 | `consultar_nota` | detalhe de uma nota, com link do PDF (ou da Consulta Publica no nacional) |
 | `emitir_nota` | emite no ambiente configurado; `competencia` opcional no nacional |
