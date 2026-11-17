@@ -63,6 +63,23 @@ CONFIG_DEFAULT = {
 
 AMBIENTES = ("municipal", "nacional")
 
+# Servico novo comeca assim (a tela e o MCP partem daqui)
+SERVICO_PADRAO = {
+    "descricao_padrao": "",
+    "aliquota": 0.02,
+    "iss_retido": False,
+    "nbs": "",
+    "c_class_trib": "",
+    "c_ind_op": "",
+    "fin_nfse": 0,
+    "ind_final": 1,
+    "ind_dest": 0,
+    "c_loc_prestacao": "",
+    "c_trib_nac": "",
+    "c_trib_mun": "",
+    "c_nbs": "",
+}
+
 # Chaves de CONFIG_DEFAULT que sao dicionarios: config antiga ganha as
 # subchaves novas sem perder o que ja estava gravado.
 _BLOCOS_ANINHADOS = ("nacional",)

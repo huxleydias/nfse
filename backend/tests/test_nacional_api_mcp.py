@@ -65,6 +65,29 @@ class TestConfigNacional:
         nac = api_nacional.get("/api/config").json()["nacional"]
         assert nac["inscricao_municipal"] == "000000012345678"
 
+    def test_codigos_e_numeros_como_aparecem_no_danfse(self, api_nacional):
+        # Quem edita pode copiar do DANFSe: o backend guarda o formato canonico
+        cfg = api_nacional.get("/api/config").json()
+        cfg["servicos"]["05762"].update({
+            "c_trib_nac": "08.02.01", "c_trib_mun": "3", "c_nbs": "1.2205.19.00",
+            "p_tot_trib_sn": "11,2",
+        })
+        r = api_nacional.put("/api/config", json={
+            "servicos": cfg["servicos"], "nacional": {"p_tot_trib_sn": "6"},
+        })
+        assert r.status_code == 200, r.text
+        servico = r.json()["servicos"]["05762"]
+        assert servico["c_trib_nac"] == "080201"
+        assert servico["c_trib_mun"] == "003"
+        assert servico["c_nbs"] == "122051900"
+        assert servico["p_tot_trib_sn"] == 11.2
+        assert r.json()["nacional"]["p_tot_trib_sn"] == 6
+
+    def test_percentual_em_fracao_explica_o_erro(self, api_nacional):
+        r = api_nacional.put("/api/config", json={"nacional": {"p_tot_trib_sn": 0.11}})
+        assert r.status_code == 422
+        assert "11,2 para 11,2%" in " ".join(r.json()["detail"])
+
     def test_contador_nao_regride(self, api_nacional):
         api_nacional.put("/api/config", json={"nacional": {"proximo_numero_dps": 50}})
         api_nacional.put("/api/config", json={"nacional": {"proximo_numero_dps": 3}})
@@ -80,7 +103,10 @@ class TestConfigNacional:
         {"nacional": {"inscricao_municipal": "123 456"}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_trib_nac": "8021"}}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_nbs": "12"}}},
-        {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "12"}}},
+        {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "1234"}}},
+        {"servicos": {"05762": {"aliquota": 0.06}}},
+        {"servicos": {"05762": {"aliquota": 0.02, "p_tot_trib_sn": 0.11}}},
+        {"nacional": {"p_tot_trib_sn": "0,11"}},
         {"servicos": {"05762": {"aliquota": 0.02, "c_trib_mun": "000"}}},
         {"servicos": {"05762": {"aliquota": 0.02, "p_tot_trib_sn": 100}}},
         {"servicos": {"05762": {"aliquota": 0.02, "p_tot_trib_sn": "abc"}}},
@@ -248,3 +274,86 @@ class TestMcpNacional:
         props = ferramentas["cancelar_nota"]["inputSchema"]["properties"]
         assert {"motivo_codigo", "motivo"} <= set(props)
         assert "nacional" in ferramentas["consultar_configuracao"]["description"]
+
+
+class TestMcpAtualizarConfiguracao:
+    """Toda a config pode ser editada pelo MCP, menos o modo teste e o
+    certificado. Porcentagens entram como porcentagem e codigos como aparecem
+    no DANFSe."""
+
+    def test_servico_em_valores_simples(self, api_nacional):
+        r = _mcp(api_nacional, "atualizar_configuracao", {"servicos": [{
+            "codigo": "05762",
+            "aliquota_iss_percentual": "2,9",
+            "codigo_tributacao_nacional": "08.02.01",
+            "codigo_tributacao_municipal": "3",
+            "nbs": "1.2205.19.00",
+            "percentual_tributos_sn_servico": "11,2",
+        }]})
+        assert r["ok"] is True, r
+        servico = r["configuracao"]["servicos"][0]
+        assert servico["aliquota_iss_percentual"] == 2.9
+        assert servico["codigo_tributacao_nacional"] == "080201"
+        assert servico["codigo_tributacao_municipal"] == "003"
+        assert servico["nbs"] == "122051900"
+        assert servico["percentual_tributos_sn"] == 11.2
+        cfg = api_nacional.get("/api/config").json()
+        assert cfg["servicos"]["05762"]["aliquota"] == 0.029
+        assert cfg["servicos"]["05762"]["descricao_padrao"] == "Treinamento"
+
+    def test_bloco_nacional_prestador_e_gerais(self, api_nacional):
+        r = _mcp(api_nacional, "atualizar_configuracao", {
+            "nacional": {"p_tot_trib_sn": "11,2", "inscricao_municipal": "000000012345678"},
+            "prestador": {"email": "fiscal@exemplo.com.br"},
+            "serie_rps": "AB",
+            "layout": 1,
+        })
+        assert r["ok"] is True, r
+        cfg = api_nacional.get("/api/config").json()
+        assert cfg["nacional"]["p_tot_trib_sn"] == 11.2
+        assert cfg["nacional"]["inscricao_municipal"] == "000000012345678"
+        assert cfg["prestador"]["email"] == "fiscal@exemplo.com.br"
+        assert cfg["prestador"]["cnpj"] == "11222333000181"
+        assert cfg["serie_rps"] == "AB"
+
+    def test_novo_servico_e_remocao(self, api_nacional):
+        r = _mcp(api_nacional, "atualizar_configuracao", {"servicos": [{
+            "codigo": "02881", "descricao": "Consultoria", "aliquota_iss_percentual": 2.9,
+            "codigo_tributacao_nacional": "010601",
+        }]})
+        assert r["ok"] is True, r
+        assert set(api_nacional.get("/api/config").json()["servicos"]) == {"05762", "02881"}
+        r = _mcp(api_nacional, "atualizar_configuracao", {"remover_servicos": ["02881"]})
+        assert r["ok"] is True, r
+        assert set(api_nacional.get("/api/config").json()["servicos"]) == {"05762"}
+
+    def test_modo_teste_fica_de_fora(self, api_nacional):
+        antes = api_nacional.get("/api/config").json()["modo_teste"]
+        r = _mcp(api_nacional, "atualizar_configuracao", {"nacional": {"modo_teste": not antes}})
+        assert r["ok"] is False
+        assert "modo_teste" in r["erro"]
+        assert api_nacional.get("/api/config").json()["modo_teste"] == antes
+
+    def test_aliquota_em_fracao_explica_o_erro(self, api_nacional):
+        r = _mcp(api_nacional, "atualizar_configuracao", {"servicos": [{
+            "codigo": "05762", "aliquota_iss_percentual": 0.02,
+        }]})
+        assert r["ok"] is False
+        assert "porcentagem" in r["erro"]
+
+    def test_campo_desconhecido(self, api_nacional):
+        r = _mcp(api_nacional, "atualizar_configuracao", {"servicos": [{
+            "codigo": "05762", "aliquota": 0.02,
+        }]})
+        assert r["ok"] is False
+        assert "aliquota_iss_percentual" in r["erro"]
+
+    def test_consulta_traz_todos_os_campos(self, api_nacional):
+        conteudo = _mcp(api_nacional, "consultar_configuracao", {})
+        servico = conteudo["servicos"][0]
+        for campo in ("aliquota_iss_percentual", "iss_retido", "local_prestacao",
+                      "percentual_tributos_sn_servico", "layout2"):
+            assert campo in servico
+        for campo in ("c_loc_emi", "reg_esp_trib"):
+            assert campo in conteudo["nacional"]
+        assert "tributacao" in conteudo

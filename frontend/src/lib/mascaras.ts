@@ -92,27 +92,59 @@ export function numeroParaMoeda(n: number): string {
 }
 
 /**
- * Percentual com 2 casas: usuario digita digitos e ve 2,00. A API recebe a
- * fracao (0.02), que e o formato do XML.
+ * Numero digitado do jeito da nota: "2", "2,9", "11,2" ou "11.2". O campo
+ * mantem so digitos e uma virgula, para nao existir duvida de separador.
  */
-export function mascaraPercentual(v: string): string {
-  const d = soDigitos(v).slice(0, 6)
-  if (!d) return ""
-  return (Number(d) / 100).toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+export function limparDecimal(v: string): string {
+  const texto = (v ?? "").replace(/\./g, ",").replace(/[^\d,]/g, "")
+  const virgula = texto.indexOf(",")
+  if (virgula === -1) return texto
+  return texto.slice(0, virgula + 1) + texto.slice(virgula + 1).replace(/,/g, "")
 }
 
-/** "2,00" -> 0.02 */
-export function percentualParaFracao(v: string): number {
-  const d = soDigitos(v)
-  return d ? Number(d) / 10000 : 0
+/** "11,2" -> 11.2; "" -> null */
+export function textoParaNumero(v: string): number | null {
+  const texto = limparDecimal(v)
+  if (texto === "" || texto === ",") return null
+  const n = Number(texto.replace(",", "."))
+  return Number.isNaN(n) ? null : n
 }
 
-/** 0.02 -> "2,00" */
-export function fracaoParaPercentual(n: number): string {
-  return mascaraPercentual(String(Math.round((n || 0) * 10000)))
+/** 11.2 -> "11,2"; 2 -> "2"; null -> "" (sem zeros sobrando) */
+export function numeroParaTexto(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return ""
+  return n.toLocaleString("pt-BR", { maximumFractionDigits: 4, useGrouping: false })
+}
+
+/** Fracao guardada (0.029) -> porcentagem exibida (2.9), sem ruido de float */
+export function fracaoParaPorcentagem(f: number | null | undefined): number | null {
+  if (f == null) return null
+  return Math.round(f * 1_000_000) / 10_000
+}
+
+/** Porcentagem digitada (2.9) -> fracao guardada (0.029) */
+export function porcentagemParaFracao(p: number | null): number {
+  if (p == null) return 0
+  return Math.round(p * 10_000) / 1_000_000
+}
+
+/**
+ * Codigo no formato do DANFSe a partir dos digitos: padrao "##.##.##" vira
+ * 08.02.01, "#.####.##.##" vira 1.2205.19.00. Formata enquanto digita.
+ */
+export function formatarCodigo(digitos: string, padrao: string): string {
+  const d = soDigitos(digitos)
+  let saida = ""
+  let i = 0
+  for (const c of padrao) {
+    if (i >= d.length) break
+    if (c === "#") {
+      saida += d[i++]
+    } else {
+      saida += c
+    }
+  }
+  return saida
 }
 
 /** Codigo numerico de largura maxima fixa (servico, NBS, cClassTrib, cIndOp). */
